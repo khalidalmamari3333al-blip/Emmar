@@ -8,8 +8,10 @@
     "expo": "~57.0.27",
     "expo-constants": "~57.0.21",
     "expo-linking": "~57.0.12",
+    "expo-localization": "~57.0.2",
     "expo-router": "~57.0.25",
     "expo-status-bar": "~57.0.1",
+    "expo-updates": "~57.0.25",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
@@ -36,7 +38,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "test": "jest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:db": "bash supabase/tests/run.sh"
   },
   "private": true,
   "jest": {

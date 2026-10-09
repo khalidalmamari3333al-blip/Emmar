@@ -1,10 +1,11 @@
 import { Pressable, StyleSheet, Text } from 'react-native';
 
 import { SearchIcon } from '@/components/omani/icons';
-import { t } from '@/i18n';
+import { useT } from '@/i18n';
 import { colors, font, radius, shadow, spacing } from '@/theme';
 
 export function SearchBar({ onPress }: { onPress: () => void }) {
+  const t = useT();
   return (
     <Pressable accessibilityRole="search" accessibilityLabel={t.searchPlaceholder} onPress={onPress} style={styles.bar}>
       <SearchIcon />

@@ -1,6 +1,7 @@
 import { ComingSoon } from '@/components/ComingSoon';
-import { t } from '@/i18n';
+import { useT } from '@/i18n';
 
 export default function Screen() {
+  const t = useT();
   return <ComingSoon title={t.tabs.search} />;
 }

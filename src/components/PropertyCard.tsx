@@ -1,14 +1,13 @@
 import { Image, StyleSheet, Text, View } from 'react-native';
 
 import { OmaniSkyline } from '@/components/omani/OmaniSkyline';
-import { t } from '@/i18n';
+import { pick, useLocale } from '@/i18n';
 import { formatPrice } from '@/services/properties';
 import { colors, font, radius, shadow, spacing } from '@/theme';
 import type { PropertySummary } from '@/types/property';
 
-const KIND_LABEL = { rent: t.categories.rent.title, sale: t.categories.sale.title, student: t.categories.student.title };
-
 export function PropertyCard({ item }: { item: PropertySummary }) {
+  const { t, locale } = useLocale();
   return (
     <View style={styles.card} testID={`property-${item.id}`}>
       <View style={styles.media}>
@@ -18,12 +17,12 @@ export function PropertyCard({ item }: { item: PropertySummary }) {
           <OmaniSkyline width={240} height={80} color={colors.clay} opacity={0.25} />
         )}
         <View style={styles.badge}>
-          <Text style={styles.badgeText}>{KIND_LABEL[item.kind]}</Text>
+          <Text style={styles.badgeText}>{t.categories[item.kind].title}</Text>
         </View>
       </View>
       <View style={styles.body}>
-        <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
-        <Text style={styles.meta}>{t.cities[item.city]} · {item.district}</Text>
+        <Text style={styles.title} numberOfLines={1}>{pick(item.title, locale)}</Text>
+        <Text style={styles.meta}>{t.cities[item.city]} · {pick(item.district, locale)}</Text>
         <Text style={styles.price}>
           {formatPrice(item)} {t.currency}
           {item.pricePeriod === 'monthly' ? ` ${t.perMonth}` : ''}

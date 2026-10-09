@@ -1,6 +1,3 @@
-import { ComingSoon } from '@/components/ComingSoon';
-import { t } from '@/i18n';
+import { AccountScreen } from '@/screens/AccountScreen';
 
-export default function Screen() {
-  return <ComingSoon title={t.tabs.account} />;
-}
+export default AccountScreen;

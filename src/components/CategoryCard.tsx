@@ -26,6 +26,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadow,
   },
-  title: { marginTop: spacing.sm, fontSize: font.body, fontWeight: '700', color: colors.text },
+  title: { marginTop: spacing.sm, fontSize: font.body, fontWeight: '700', color: colors.text, textAlign: 'center' },
   subtitle: { marginTop: 2, fontSize: font.small, color: colors.textMuted, textAlign: 'center' },
 });

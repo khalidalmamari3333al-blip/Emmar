@@ -1,12 +1,13 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { t } from '@/i18n';
+import { useT } from '@/i18n';
 import { colors, font, radius, spacing } from '@/theme';
 import type { City } from '@/types/property';
 
 const CITIES: City[] = ['sohar', 'muscat'];
 
 export function CityChips({ value, onChange }: { value: City; onChange: (c: City) => void }) {
+  const t = useT();
   return (
     <View style={styles.row} accessibilityRole="radiogroup">
       {CITIES.map((c) => {

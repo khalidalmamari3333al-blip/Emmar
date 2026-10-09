@@ -1,4 +1,6 @@
-export const ar = {
+import type { Strings } from './types';
+
+export const ar: Strings = {
   appName: 'عقاري عُمان',
   greeting: 'أهلًا بك',
   heroTitle: 'ابحث عن بيتك في عُمان',
@@ -22,7 +24,8 @@ export const ar = {
   bedrooms: 'غرف',
   sqm: 'م²',
   comingSoon: 'هذه الشاشة قيد التطوير وستتوفر في مرحلة قادمة.',
+  languageTitle: 'اللغة',
+  languageHint: 'سيُعاد تشغيل التطبيق لتطبيق اتجاه الكتابة.',
+  languages: { ar: 'العربية', en: 'English' },
   tabs: { home: 'الرئيسية', search: 'البحث', bookings: 'حجوزاتي', account: 'حسابي' },
-} as const;
-
-export type Strings = typeof ar;
+};

@@ -1,11 +1,12 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { CrenellationDivider } from '@/components/omani/CrenellationDivider';
-import { t } from '@/i18n';
+import { useT } from '@/i18n';
 import { colors, font, spacing } from '@/theme';
 
 /** شاشة صريحة بأن الميزة غير منجزة بعد — لا واجهات شكلية. */
 export function ComingSoon({ title }: { title: string }) {
+  const t = useT();
   return (
     <View style={styles.wrap}>
       <Text style={styles.title}>{title}</Text>

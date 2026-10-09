@@ -9,7 +9,7 @@ import { BedIcon, HouseIcon, KeyIcon } from '@/components/omani/icons';
 import { OmaniSkyline } from '@/components/omani/OmaniSkyline';
 import { PropertyCard } from '@/components/PropertyCard';
 import { SearchBar } from '@/components/SearchBar';
-import { t } from '@/i18n';
+import { useT } from '@/i18n';
 import { FeaturedResult, getFeaturedProperties } from '@/services/properties';
 import { colors, font, radius, spacing } from '@/theme';
 import type { City, ListingKind } from '@/types/property';
@@ -21,6 +21,7 @@ export interface HomeScreenProps {
 }
 
 export function HomeScreen({ loadFeatured = getFeaturedProperties, onSearch = () => {}, onCategory = () => {} }: HomeScreenProps) {
+  const t = useT();
   const [city, setCity] = useState<City>('sohar');
   // نحفظ المدينة مع النتيجة حتى نعرض مؤشر التحميل عند تغيير المدينة.
   const [loaded, setLoaded] = useState<{ city: City; result: FeaturedResult } | null>(null);
@@ -83,6 +84,7 @@ export function HomeScreen({ loadFeatured = getFeaturedProperties, onSearch = ()
 }
 
 function Featured({ result }: { result: FeaturedResult | null }) {
+  const t = useT();
   if (!result) return <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.md }} />;
   if (result.status === 'not_configured') return <Text style={styles.notice}>{t.notConfigured}</Text>;
   if (result.status === 'error') return <Text style={[styles.notice, { color: colors.danger }]}>{t.loadError}</Text>;

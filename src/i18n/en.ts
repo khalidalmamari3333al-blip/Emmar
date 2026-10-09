@@ -1,0 +1,31 @@
+import type { Strings } from './types';
+
+export const en: Strings = {
+  appName: 'Aqari Oman',
+  greeting: 'Welcome',
+  heroTitle: 'Find your home in Oman',
+  heroSubtitle: 'Authentic heritage, modern living',
+  searchPlaceholder: 'Search by area, building or property type',
+  chooseCity: 'City',
+  cities: { sohar: 'Sohar', muscat: 'Muscat' },
+  categoriesTitle: 'What are you looking for?',
+  categories: {
+    rent: { title: 'For rent', subtitle: 'Flats & studios' },
+    sale: { title: 'For sale', subtitle: 'Flats, villas, land' },
+    student: { title: 'Student housing', subtitle: 'Book your bed' },
+  },
+  featuredTitle: 'Featured properties',
+  emptyFeatured: 'No properties published in this city yet.',
+  notConfigured: 'The database is not connected yet. Add your Supabase settings to .env.',
+  loadError: 'Could not load properties.',
+  mockBadge: 'Demo data — not real listings',
+  currency: 'OMR',
+  perMonth: '/ month',
+  bedrooms: 'bedrooms',
+  sqm: 'm²',
+  comingSoon: 'This screen is under development and will arrive in a later phase.',
+  languageTitle: 'Language',
+  languageHint: 'The app will restart to apply the text direction.',
+  languages: { ar: 'العربية', en: 'English' },
+  tabs: { home: 'Home', search: 'Search', bookings: 'My bookings', account: 'Account' },
+};

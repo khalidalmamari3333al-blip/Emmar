@@ -1,10 +1,11 @@
 import { Tabs } from 'expo-router';
 
 import { BedIcon, HouseIcon, KeyIcon, SearchIcon } from '@/components/omani/icons';
-import { t } from '@/i18n';
+import { useT } from '@/i18n';
 import { colors } from '@/theme';
 
 export default function TabsLayout() {
+  const t = useT();
   return (
     <Tabs
       screenOptions={{
