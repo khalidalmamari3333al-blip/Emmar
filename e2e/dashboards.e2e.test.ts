@@ -24,6 +24,7 @@ import {
   updateBed,
   updateProperty,
 } from '@/services/owner';
+import { supabaseNotifications } from '@/services/notifications';
 import { searchProperties } from '@/services/properties';
 
 const URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
@@ -105,7 +106,19 @@ test('owner builds a student residence, a student books, the owner approves', as
   const stats = await getOwnerStats();
   expect(stats.ok && stats.data).toMatchObject({ properties: 1, published: 1, beds: 6, pendingRequests: 1 });
 
+  // إشعار المالك أُنشئ تلقائيًا من قاعدة البيانات
+  const ownerInbox = supabaseNotifications(owner.client)!;
+  const ownerList = await ownerInbox.list();
+  expect(ownerList[0]).toMatchObject({ kind: 'booking_requested', data: { requester_name: 'سالم البلوشي', room_code: '001' } });
+  expect(await ownerInbox.unreadCount()).toBe(1);
+  await ownerInbox.markRead([ownerList[0].id]);
+  expect(await ownerInbox.unreadCount()).toBe(0);
+
   expect((await decideRequest(r!.id, 'confirmed')).ok).toBe(true);
+  const studentInbox = supabaseNotifications(student.client)!;
+  expect((await studentInbox.list()).map((x) => x.kind)).toEqual(['booking_confirmed']);
+  // كل مستخدم يرى إشعاراته فقط
+  expect((await studentInbox.list()).some((x) => x.kind === 'booking_requested')).toBe(false);
   mockCurrent = student.client;
   const sb = await listMyBookings(student.user.id, LIVE);
   expect(sb.status === 'ok' && sb.data[0].status).toBe('confirmed');

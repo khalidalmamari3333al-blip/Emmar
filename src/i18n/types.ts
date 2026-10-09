@@ -216,5 +216,21 @@ export interface Strings {
     newChat: string;
     errors: Record<'daily_limit' | 'busy' | 'sign_in' | 'not_configured' | 'error', string>;
   };
+  notifications: {
+    title: string;
+    open: string;
+    empty: string;
+    markAllRead: string;
+    signInPrompt: string;
+    justNow: string;
+    minutesAgo: (n: number) => string;
+    hoursAgo: (n: number) => string;
+    daysAgo: (n: number) => string;
+    kinds: Record<
+      'booking_requested' | 'booking_cancelled_by_tenant' | 'booking_confirmed' | 'booking_rejected' | 'booking_cancelled_by_owner' | 'booking_expired',
+      { title: string; body: (p: { bed: string; property: string; name: string }) => string }
+    >;
+    push: { title: string; enable: string; enabled: string; denied: string; unsupported: string; notReady: string; hint: string };
+  };
   tabs: { home: string; search: string; bookings: string; account: string; assistant: string };
 }

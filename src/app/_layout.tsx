@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { AppBridge } from '@/components/AppBridge';
 import { LocaleProvider } from '@/i18n';
 import { AuthProvider } from '@/lib/auth';
 import { colors } from '@/theme';
@@ -13,6 +14,7 @@ export default function RootLayout() {
     <LocaleProvider>
       <AuthProvider>
         <SafeAreaProvider>
+          <AppBridge />
           <StatusBar style="dark" />
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }} />
         </SafeAreaProvider>

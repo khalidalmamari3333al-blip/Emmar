@@ -206,4 +206,56 @@ update public.assistant_usage set count = 0;
 reset role;
 select pg_temp.check((select count from public.assistant_usage where user_id = '00000000-0000-4000-8000-0000000000e1') = 2, 'users cannot reset their usage directly (RLS hides the rows)');
 
+-- ===== 11. الإشعارات =====
+delete from public.notifications;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e2');
+create temp table t_n_bed as select id from public.beds where id not in (select bed_id from public.bookings where status in ('pending','confirmed')) order by id limit 1;
+grant select on t_n_bed to authenticated;
+insert into public.bookings (user_id, bed_id, start_date, end_date) select auth.uid(), id, '2028-01-01', '2028-02-01' from t_n_bed;
+reset role;
+select pg_temp.check((select count(*) from public.notifications where user_id = '00000000-0000-4000-8000-00000000d001' and kind = 'booking_requested') = 1, 'owner is notified of a new request');
+select pg_temp.check((select data ->> 'requester_name' from public.notifications where kind = 'booking_requested') = 'طالب ثان', 'notification carries requester name and property');
+
+select pg_temp.as_user('00000000-0000-4000-8000-00000000d001');
+update public.bookings set status = 'confirmed' where bed_id = (select id from t_n_bed) and status = 'pending';
+reset role;
+select pg_temp.check((select count(*) from public.notifications where user_id = '00000000-0000-4000-8000-0000000000e2' and kind = 'booking_confirmed') = 1, 'tenant is notified when approved');
+
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e2');
+update public.bookings set status = 'cancelled' where bed_id = (select id from t_n_bed) and status = 'confirmed';
+select pg_temp.check((select count(*) from public.notifications) = 1, 'users see only their own notifications');
+update public.notifications set read_at = now();
+select pg_temp.check((select read_at is not null from public.notifications limit 1), 'user can mark own notification read');
+select pg_temp.expect_error($$update public.notifications set kind = 'booking_rejected'$$, '42501', 'user cannot alter notification content');
+select pg_temp.expect_error($$insert into public.notifications (user_id, kind) values (auth.uid(), 'booking_confirmed')$$, '42501', 'users cannot forge notifications');
+reset role;
+select pg_temp.check((select count(*) from public.notifications where user_id = '00000000-0000-4000-8000-00000000d001' and kind = 'booking_cancelled_by_tenant') = 1, 'owner is notified when the tenant cancels');
+
+-- انتهاء المهلة يُشعر المستأجر
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e2');
+insert into public.bookings (user_id, bed_id, start_date, end_date) select auth.uid(), id, '2028-03-01', '2028-04-01' from t_n_bed;
+reset role;
+update public.bookings set expires_at = now() - interval '1 minute' where bed_id = (select id from t_n_bed) and status = 'pending';
+select public.expire_stale_bookings();
+select pg_temp.check((select count(*) from public.notifications where user_id = '00000000-0000-4000-8000-0000000000e2' and kind = 'booking_expired') = 1, 'tenant is notified when a request expires');
+
+-- النص بلغتين
+select pg_temp.check((select title from public.notification_text('booking_confirmed', 'en', '{}')) = 'Your request was approved ✓', 'English notification text');
+select pg_temp.check((select body from public.notification_text('booking_requested', 'ar', '{"requester_name":"سالم","bed_code":"2","room_code":"003","property_title_ar":"سكن النخيل"}')) = 'سالم طلب سرير 2 · غرفة 003 في سكن النخيل', 'Arabic notification text');
+
+-- رموز الأجهزة
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e2');
+select public.register_push_token('ExponentPushToken[abc123456]', 'android');
+select pg_temp.check((select count(*) from public.push_tokens) = 1, 'user registers a device token');
+select pg_temp.expect_error($$insert into public.push_tokens (token, user_id, platform) values ('ExponentPushToken[evil00000]', '00000000-0000-4000-8000-00000000d001', 'ios')$$, '42501', 'cannot register a token for someone else');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e1');
+select public.register_push_token('ExponentPushToken[abc123456]', 'android');
+reset role;
+select pg_temp.check((select user_id from public.push_tokens where token = 'ExponentPushToken[abc123456]') = '00000000-0000-4000-8000-0000000000e1', 'a device moves to the account that last signed in on it');
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e2');
+select public.unregister_push_token('ExponentPushToken[abc123456]');
+reset role;
+select pg_temp.check((select count(*) from public.push_tokens) = 1, 'cannot unregister another user''s device');
+
 \echo 'ALL DATABASE TESTS PASSED'

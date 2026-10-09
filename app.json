@@ -30,6 +30,12 @@
           "photosPermission": "يحتاج التطبيق الوصول للصور لإضافة صور العقار. The app needs photo access to add property photos.",
           "cameraPermission": false
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#2F5D50"
+        }
       ]
     ],
     "scheme": "aqarioman",

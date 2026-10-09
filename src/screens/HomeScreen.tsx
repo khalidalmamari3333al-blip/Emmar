@@ -3,6 +3,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-nat
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CategoryCard } from '@/components/CategoryCard';
+import { NotificationBell } from '@/components/NotificationBell';
 import { CityChips } from '@/components/CityChips';
 import { CrenellationDivider } from '@/components/omani/CrenellationDivider';
 import { BedIcon, HouseIcon, KeyIcon } from '@/components/omani/icons';
@@ -19,9 +20,10 @@ export interface HomeScreenProps {
   onSearch?: () => void;
   onCategory?: (kind: ListingKind) => void;
   onOpen?: (id: string) => void;
+  onNotifications?: () => void;
 }
 
-export function HomeScreen({ loadFeatured = getFeaturedProperties, onSearch = () => {}, onCategory = () => {}, onOpen = () => {} }: HomeScreenProps) {
+export function HomeScreen({ loadFeatured = getFeaturedProperties, onSearch = () => {}, onCategory = () => {}, onOpen = () => {}, onNotifications = () => {} }: HomeScreenProps) {
   const t = useT();
   const [city, setCity] = useState<City>('sohar');
   // نحفظ المدينة مع النتيجة حتى نعرض مؤشر التحميل عند تغيير المدينة.
@@ -43,7 +45,10 @@ export function HomeScreen({ loadFeatured = getFeaturedProperties, onSearch = ()
           <View style={styles.skyline}>
             <OmaniSkyline width={380} height={120} color={colors.sand} opacity={0.3} />
           </View>
-          <Text style={styles.brand}>{t.appName}</Text>
+          <View style={styles.brandRow}>
+            <Text style={styles.brand}>{t.appName}</Text>
+            <NotificationBell onPress={onNotifications} />
+          </View>
           <Text style={styles.heroTitle}>{t.heroTitle}</Text>
           <Text style={styles.heroSubtitle}>{t.heroSubtitle}</Text>
         </View>
@@ -112,6 +117,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   skyline: { position: 'absolute', bottom: 0, left: 0, right: 0, alignItems: 'center' },
+  brandRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   brand: { color: colors.accent, fontSize: font.small, fontWeight: '700', letterSpacing: 0.5 },
   heroTitle: { color: colors.white, fontSize: font.title, fontWeight: '800', marginTop: spacing.sm },
   heroSubtitle: { color: colors.sandLight, fontSize: font.body, marginTop: spacing.xs },

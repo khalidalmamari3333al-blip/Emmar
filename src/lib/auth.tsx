@@ -28,7 +28,13 @@ export interface AuthBackend {
   signIn(email: string, password: string): Promise<AuthResult>;
   signUp(fullName: string, email: string, password: string): Promise<AuthResult>;
   signOut(): Promise<void>;
-  updateProfile(userId: string, patch: { fullName?: string; phone?: string }): Promise<boolean>;
+  updateProfile(userId: string, patch: ProfilePatch): Promise<boolean>;
+}
+
+export interface ProfilePatch {
+  fullName?: string;
+  phone?: string;
+  preferredLocale?: 'ar' | 'en';
 }
 
 export type AuthStatus = 'loading' | 'signed_in' | 'signed_out' | 'demo' | 'not_configured';
@@ -39,7 +45,7 @@ interface AuthContextValue {
   signIn: AuthBackend['signIn'];
   signUp: AuthBackend['signUp'];
   signOut: () => Promise<void>;
-  updateProfile: (patch: { fullName?: string; phone?: string }) => Promise<boolean>;
+  updateProfile: (patch: ProfilePatch) => Promise<boolean>;
   /** يعيد قراءة الملف الشخصي (مثلًا بعد تغيير الدور) */
   refresh: () => Promise<void>;
 }
@@ -97,6 +103,7 @@ export function supabaseBackend(): AuthBackend | null {
       const row: Record<string, string | null> = {};
       if (patch.fullName !== undefined) row.full_name = patch.fullName.trim() || null;
       if (patch.phone !== undefined) row.phone = patch.phone.trim() || null;
+      if (patch.preferredLocale) row.preferred_locale = patch.preferredLocale;
       const { data, error } = await supabase.from('profiles').update(row).eq('id', userId).select('id');
       return !error && (data?.length ?? 0) > 0;
     },
@@ -153,10 +160,11 @@ export function AuthProvider({ children, backend }: { children: ReactNode; backe
   }, [real]);
   const userId = state.user?.id;
   const updateProfile = useCallback(
-    async (patch: { fullName?: string; phone?: string }) => {
+    async (patch: ProfilePatch) => {
       if (!real || !userId) return false;
       const ok = await real.updateProfile(userId, patch);
-      if (ok) await refresh();
+      // تغيير اللغة لا يحتاج إعادة قراءة الملف الشخصي
+      if (ok && (patch.fullName !== undefined || patch.phone !== undefined)) await refresh();
       return ok;
     },
     [real, userId, refresh],

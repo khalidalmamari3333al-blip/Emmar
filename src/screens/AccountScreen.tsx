@@ -8,6 +8,7 @@ import { Button, Field, Notice } from '@/components/ui';
 import { Locale, useLocale } from '@/i18n';
 import { isAdminRole, isOwnerRole, useAuth } from '@/lib/auth';
 import { ltr } from '@/lib/bidi';
+import { enablePush, PushStatus, unregisterDevice } from '@/lib/push';
 import { colors, font, radius, spacing } from '@/theme';
 
 const LOCALES: Locale[] = ['ar', 'en'];
@@ -25,7 +26,7 @@ export function AccountScreen({ onOpenOwner = () => {}, onOpenAdmin = () => {} }
           <Text style={styles.hintStart}>{t.auth.signedInAs}</Text>
           {auth.user.fullName ? <Text style={styles.h2}>{auth.user.fullName}</Text> : null}
           <Text style={styles.email}>{ltr(auth.user.email)}</Text>
-          <Pressable onPress={auth.signOut} accessibilityRole="button" style={styles.signOut}>
+          <Pressable onPress={() => unregisterDevice().finally(auth.signOut)} accessibilityRole="button" style={styles.signOut}>
             <Text style={styles.signOutText}>{t.auth.signOut}</Text>
           </Pressable>
         </View>
@@ -35,6 +36,7 @@ export function AccountScreen({ onOpenOwner = () => {}, onOpenAdmin = () => {} }
           {isOwnerRole(auth.user) && <Button label={t.owner.openDashboard} onPress={onOpenOwner} testID="open-owner" />}
           {isAdminRole(auth.user) && <Button label={t.admin.openDashboard} onPress={onOpenAdmin} variant="secondary" testID="open-admin" />}
           <ProfileCard key={auth.user.id} />
+          <PushCard />
         </>
       )}
       {auth.status === 'signed_out' && <AuthForm />}
@@ -67,6 +69,40 @@ export function AccountScreen({ onOpenOwner = () => {}, onOpenAdmin = () => {} }
       <CrenellationDivider />
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function PushCard() {
+  const { t } = useLocale();
+  const [status, setStatus] = useState<PushStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+  const msg: Record<PushStatus, string> = {
+    enabled: t.notifications.push.enabled,
+    denied: t.notifications.push.denied,
+    unsupported: t.notifications.push.unsupported,
+    not_ready: t.notifications.push.notReady,
+    error: t.profile.failed,
+  };
+  return (
+    <View style={styles.card}>
+      <Text style={styles.h2}>{t.notifications.push.title}</Text>
+      <Text style={styles.hintStart}>{t.notifications.push.hint}</Text>
+      {status && <Notice text={msg[status]} tone={status === 'enabled' ? 'success' : status === 'error' ? 'error' : 'muted'} />}
+      {status !== 'enabled' && (
+        <Button
+          small
+          variant="secondary"
+          label={t.notifications.push.enable}
+          busy={busy}
+          testID="enable-push"
+          onPress={async () => {
+            setBusy(true);
+            setStatus(await enablePush(true));
+            setBusy(false);
+          }}
+        />
+      )}
+    </View>
   );
 }
 

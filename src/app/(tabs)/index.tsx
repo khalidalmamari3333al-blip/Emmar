@@ -8,6 +8,7 @@ export default function HomeRoute() {
       onSearch={() => router.push('/search')}
       onCategory={(kind) => router.push({ pathname: '/search', params: { kind } })}
       onOpen={(id) => router.push(`/property/${id}`)}
+      onNotifications={() => router.push('/notifications')}
     />
   );
 }

@@ -55,3 +55,16 @@ npx supabase functions deploy assistant
 - النموذج: Claude Opus 5.5، بجهد `medium`. الحد اليومي: 30 رسالة لكل مستخدم (`DAILY_LIMIT` في `supabase/functions/assistant/core.ts`).
 - مفعّل الرجوع التلقائي لنموذج بديل إن رفض النموذج طلبًا لأسباب أمان (`fallbacks: "default"`).
 - راقب التكلفة من لوحة Anthropic Console → Usage.
+
+## 7) الإشعارات
+1. طبّق `supabase/migrations/20261120000001_notifications.sql` في SQL Editor.
+   - الإشعارات داخل التطبيق (الجرس) تعمل فورًا بعد ذلك.
+   - الملف يفعّل إضافة **pg_net** تلقائيًا إن كانت متاحة؛ تأكد من ظهورها في Database → Extensions.
+2. إشعارات الهاتف (Push) تحتاج:
+```bash
+npx eas-cli@latest init                 # يضيف معرّف المشروع إلى app.json — ارفع هذا التعديل
+npx eas-cli@latest build --profile development --platform android
+```
+   - **لا تعمل في Expo Go** على أندرويد (أُزيلت منه منذ SDK 53)، ولا في المتصفح أو المحاكي.
+   - ثبّت النسخة الناتجة على هاتفك، سجّل الدخول، ثم من "حسابي" اضغط "تفعيل إشعارات الهاتف".
+   - لآيفون تحتاج حساب Apple Developer.
