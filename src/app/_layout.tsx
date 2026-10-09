@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { LocaleProvider } from '@/i18n';
+import { AuthProvider } from '@/lib/auth';
 import { colors } from '@/theme';
 
 // اللغة واتجاه الكتابة (RTL/LTR) يديرهما LocaleProvider:
@@ -10,10 +11,12 @@ import { colors } from '@/theme';
 export default function RootLayout() {
   return (
     <LocaleProvider>
-      <SafeAreaProvider>
-        <StatusBar style="dark" />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }} />
-      </SafeAreaProvider>
+      <AuthProvider>
+        <SafeAreaProvider>
+          <StatusBar style="dark" />
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }} />
+        </SafeAreaProvider>
+      </AuthProvider>
     </LocaleProvider>
   );
 }

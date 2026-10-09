@@ -10,12 +10,16 @@ cp .env.example .env   # ثم املأ القيم
 npm start              # أو: npm run web
 ```
 
+> بعد أي تعديل على `.env` أعد التشغيل مع مسح الذاكرة المؤقتة: `npx expo start --clear`
+> (Expo يحفظ قيم `EXPO_PUBLIC_*` القديمة في الذاكرة المؤقتة).
+
 ## الفحوصات
 ```bash
 npm run typecheck
 npm run lint
 npm test          # اختبارات التطبيق
 npm run test:db   # اختبارات قاعدة البيانات (تحتاج PostgreSQL 15+ محليًا)
+npm run test:e2e  # رحلة الحجز كاملة ضد Supabase محلي (انظر e2e/README.md)
 ```
 
 ## البنية
@@ -33,6 +37,12 @@ npm run test:db   # اختبارات قاعدة البيانات (تحتاج Pos
 - `supabase/migrations/` الجداول، سياسات RLS، وقيد منع الحجز المزدوج. تُطبَّق بالترتيب.
 - `supabase/seed/demo.sql` بيانات تجريبية (`is_demo = true`) لمشروع التطوير فقط؛ التطبيق يستبعدها دائمًا.
 - `supabase/tests/` اختبارات الأمان والحجز (تعمل على PostgreSQL محلي مع محاكاة بسيطة لـ Supabase).
+
+### الحجز
+- طلب الحجز يُنشأ بحالة `pending` ويحجز السرير **48 ساعة** بانتظار موافقة المالك. المهلة والسعر يحددهما الخادم.
+- بعد انتهاء المهلة لا يحجب الطلب السرير، ويُعلَّم `expired`. للتنظيف الدوري فعّل إضافة **pg_cron**
+  من Database → Extensions ثم نفّذ: `select cron.schedule('expire-stale-bookings', '*/10 * * * *', 'select public.expire_stale_bookings()');`
+- لا يوجد دفع إلكتروني في هذه المرحلة.
 
 التطبيق على مشروعك: في لوحة Supabase افتح **SQL Editor** والصق كل ملف من `migrations` بالترتيب ثم **Run**.
 أو: `npx supabase link --project-ref <ref>` ثم `npx supabase db push`.

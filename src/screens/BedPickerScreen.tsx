@@ -5,9 +5,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChipGroup } from '@/components/ChipGroup';
 import { BedLegend, FloorPlan } from '@/components/FloorPlan';
 import { MockBadge, StatusNotice } from '@/components/StatusNotice';
-import { pick, useLocale } from '@/i18n';
+import { pick, useLocale, useT } from '@/i18n';
 import { addMonths, formatDate, formatMonthYear, ISODate, upcomingMonthStarts } from '@/lib/dates';
+import { useAuth } from '@/lib/auth';
 import { getBedAvailability, getBedLayout } from '@/services/beds';
+import { BookingRequest, createBookingRequest, CreateResult } from '@/services/bookings';
 import { DataResult, formatPrice } from '@/services/properties';
 import { colors, font, radius, shadow, spacing } from '@/theme';
 import type { Availability, BuildingLayout } from '@/types/layout';
@@ -20,10 +22,26 @@ export interface BedPickerScreenProps {
   loadAvailability?: (id: string, start: ISODate, end: ISODate) => Promise<DataResult<Availability>>;
   today?: Date;
   onBack?: () => void;
+  createRequest?: (userId: string, req: BookingRequest) => Promise<CreateResult>;
+  onRequireSignIn?: () => void;
+  onViewBookings?: () => void;
 }
 
-export function BedPickerScreen({ propertyId, loadLayout = getBedLayout, loadAvailability = getBedAvailability, today, onBack }: BedPickerScreenProps) {
+export function BedPickerScreen({
+  propertyId,
+  loadLayout = getBedLayout,
+  loadAvailability = getBedAvailability,
+  today,
+  onBack,
+  createRequest = createBookingRequest,
+  onRequireSignIn = () => {},
+  onViewBookings = () => {},
+}: BedPickerScreenProps) {
   const { t, locale } = useLocale();
+  const auth = useAuth();
+  const [sending, setSending] = useState(false);
+  const [outcome, setOutcome] = useState<CreateResult | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
   const starts = useMemo(() => upcomingMonthStarts(today ?? new Date(), 6), [today]);
 
   const [layoutRes, setLayoutRes] = useState<DataResult<BuildingLayout[]> | null>(null);
@@ -35,7 +53,7 @@ export function BedPickerScreen({ propertyId, loadLayout = getBedLayout, loadAva
   const [avail, setAvail] = useState<{ key: string; result: DataResult<Availability> } | null>(null);
 
   const end = addMonths(start, months);
-  const periodKey = `${start}|${end}`;
+  const periodKey = `${start}|${end}|${reloadToken}`;
 
   useEffect(() => {
     let active = true;
@@ -47,11 +65,11 @@ export function BedPickerScreen({ propertyId, loadLayout = getBedLayout, loadAva
 
   useEffect(() => {
     let active = true;
-    loadAvailability(propertyId, start, end).then((r) => active && setAvail({ key: `${start}|${end}`, result: r }));
+    loadAvailability(propertyId, start, end).then((r) => active && setAvail({ key: `${start}|${end}|${reloadToken}`, result: r }));
     return () => {
       active = false;
     };
-  }, [propertyId, start, end, loadAvailability]);
+  }, [propertyId, start, end, loadAvailability, reloadToken]);
 
   const buildings = layoutRes?.status === 'ok' ? layoutRes.data : [];
   const building = buildings.find((b) => b.id === buildingId) ?? buildings[0];
@@ -59,7 +77,7 @@ export function BedPickerScreen({ propertyId, loadLayout = getBedLayout, loadAva
   const availRes = avail?.key === periodKey ? avail.result : null;
   const availability = availRes?.status === 'ok' ? availRes.data : null;
   // إن لم يعد السرير المختار متاحًا في الفترة الجديدة يُلغى اختياره ونخبر المستخدم.
-  const selectionLost = Boolean(selectedId && availability && !availability[selectedId]);
+  const selectionLost = Boolean(selectedId && availability && !availability[selectedId] && outcome?.status !== 'ok');
   const selected = selectionLost ? null : selectedId;
 
   const located = (() => {
@@ -148,7 +166,10 @@ export function BedPickerScreen({ propertyId, loadLayout = getBedLayout, loadAva
               floor={floor}
               availability={availability}
               selectedId={selected}
-              onSelect={(bed) => setSelectedId(bed.id === selected ? null : bed.id)}
+              onSelect={(bed) => {
+                setOutcome(null);
+                setSelectedId(bed.id === selected ? null : bed.id);
+              }}
             />
             <BedLegend />
             {selectionLost && <Text style={styles.warn}>{t.beds.selectionCleared}</Text>}
@@ -177,13 +198,93 @@ export function BedPickerScreen({ propertyId, loadLayout = getBedLayout, loadAva
           ) : (
             <Text style={styles.sumTitle}>{t.beds.selectPrompt}</Text>
           )}
-          <View style={[styles.cta, styles.ctaDisabled]} accessibilityState={{ disabled: true }} accessibilityRole="button">
-            <Text style={styles.ctaText}>{t.beds.sendRequest}</Text>
-          </View>
-          <Text style={styles.ctaHint}>{t.beds.sendRequestSoon}</Text>
+          <RequestAction
+            authStatus={auth.status}
+            hasSelection={Boolean(located)}
+            sending={sending}
+            outcome={outcome}
+            onRequireSignIn={onRequireSignIn}
+            onViewBookings={onViewBookings}
+            onSubmit={async () => {
+              if (!located || !auth.user) return;
+              setSending(true);
+              const r = await createRequest(auth.user.id, { bedId: located.bed.id, start, end });
+              setSending(false);
+              setOutcome(r);
+              if (r.status === 'conflict') setSelectedId(null);
+              // نحدّث التوفر بعد أي محاولة: إما صار السرير لك، أو سبقك إليه أحد.
+              if (r.status === 'ok' || r.status === 'conflict') setReloadToken((n) => n + 1);
+            }}
+          />
         </View>
       )}
     </SafeAreaView>
+  );
+}
+
+function RequestAction({
+  authStatus,
+  hasSelection,
+  sending,
+  outcome,
+  onSubmit,
+  onRequireSignIn,
+  onViewBookings,
+}: {
+  authStatus: ReturnType<typeof useAuth>['status'];
+  hasSelection: boolean;
+  sending: boolean;
+  outcome: CreateResult | null;
+  onSubmit: () => void;
+  onRequireSignIn: () => void;
+  onViewBookings: () => void;
+}) {
+  const t = useT();
+  if (outcome?.status === 'ok') {
+    return (
+      <View style={styles.sent} testID="request-sent">
+        <Text style={styles.sentTitle}>{t.beds.sentTitle}</Text>
+        <Text style={styles.sumLine}>{t.beds.sentBody}</Text>
+        <Pressable style={styles.cta} accessibilityRole="button" onPress={onViewBookings}>
+          <Text style={styles.ctaText}>{t.beds.viewBookings}</Text>
+        </Pressable>
+      </View>
+    );
+  }
+  if (authStatus === 'demo' || authStatus === 'not_configured') {
+    return (
+      <>
+        <View style={[styles.cta, styles.ctaDisabled]} accessibilityState={{ disabled: true }} accessibilityRole="button">
+          <Text style={styles.ctaText}>{t.beds.sendRequest}</Text>
+        </View>
+        <Text style={styles.ctaHint}>{authStatus === 'demo' ? t.beds.demoNoBooking : t.notConfigured}</Text>
+      </>
+    );
+  }
+  if (authStatus !== 'signed_in') {
+    return (
+      <Pressable style={styles.cta} accessibilityRole="button" onPress={onRequireSignIn} disabled={authStatus === 'loading'}>
+        <Text style={styles.ctaText}>{t.beds.signInToBook}</Text>
+      </Pressable>
+    );
+  }
+  const error =
+    outcome?.status === 'conflict' ? t.beds.conflict : outcome?.status === 'not_allowed' ? t.beds.notAllowed : outcome ? t.beds.failed : null;
+  const disabled = !hasSelection || sending;
+  return (
+    <>
+      {error && <Text style={styles.error}>{error}</Text>}
+      <Pressable
+        style={[styles.cta, disabled && styles.ctaDisabled]}
+        accessibilityRole="button"
+        accessibilityState={{ disabled, busy: sending }}
+        disabled={disabled}
+        onPress={onSubmit}
+        testID="send-request"
+      >
+        <Text style={styles.ctaText}>{sending ? t.beds.sending : t.beds.sendRequest}</Text>
+      </Pressable>
+    </>
   );
 }
 
@@ -206,5 +307,8 @@ const styles = StyleSheet.create({
   cta: { marginTop: spacing.sm, borderRadius: radius.md, paddingVertical: 12, alignItems: 'center', backgroundColor: colors.primary },
   ctaDisabled: { opacity: 0.5 },
   ctaText: { color: colors.white, fontWeight: '800', fontSize: font.body },
+  error: { color: colors.danger, fontSize: font.small, textAlign: 'center', marginTop: spacing.xs },
+  sent: { gap: 4 },
+  sentTitle: { fontSize: font.body, fontWeight: '800', color: colors.primary },
   ctaHint: { fontSize: 11, color: colors.textMuted, textAlign: 'center' },
 });

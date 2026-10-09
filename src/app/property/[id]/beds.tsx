@@ -4,5 +4,12 @@ import { BedPickerScreen } from '@/screens/BedPickerScreen';
 
 export default function BedsRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  return <BedPickerScreen propertyId={id} onBack={() => (router.canGoBack() ? router.back() : router.replace(`/property/${id}`))} />;
+  return (
+    <BedPickerScreen
+      propertyId={id}
+      onBack={() => (router.canGoBack() ? router.back() : router.replace(`/property/${id}`))}
+      onRequireSignIn={() => router.push('/account')}
+      onViewBookings={() => router.replace('/bookings')}
+    />
+  );
 }
