@@ -1,4 +1,4 @@
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { OmaniSkyline } from '@/components/omani/OmaniSkyline';
 import { pick, useLocale } from '@/i18n';
@@ -6,10 +6,17 @@ import { formatPrice } from '@/services/properties';
 import { colors, font, radius, shadow, spacing } from '@/theme';
 import type { PropertySummary } from '@/types/property';
 
-export function PropertyCard({ item }: { item: PropertySummary }) {
+export function PropertyCard({ item, onPress, wide = false }: { item: PropertySummary; onPress?: () => void; wide?: boolean }) {
   const { t, locale } = useLocale();
   return (
-    <View style={styles.card} testID={`property-${item.id}`}>
+    <Pressable
+      style={({ pressed }) => [styles.card, wide && styles.wide, pressed && { opacity: 0.9 }]}
+      testID={`property-${item.id}`}
+      accessibilityRole="button"
+      accessibilityLabel={pick(item.title, locale)}
+      onPress={onPress}
+      disabled={!onPress}
+    >
       <View style={styles.media}>
         {item.imageUrl ? (
           <Image source={{ uri: item.imageUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
@@ -17,7 +24,7 @@ export function PropertyCard({ item }: { item: PropertySummary }) {
           <OmaniSkyline width={240} height={80} color={colors.clay} opacity={0.25} />
         )}
         <View style={styles.badge}>
-          <Text style={styles.badgeText}>{t.categories[item.kind].title}</Text>
+          <Text style={styles.badgeText}>{t.categories[item.kind].title}{item.kind !== 'student' ? ` · ${t.types[item.type]}` : ''}</Text>
         </View>
       </View>
       <View style={styles.body}>
@@ -31,12 +38,13 @@ export function PropertyCard({ item }: { item: PropertySummary }) {
           {[item.bedrooms ? `${item.bedrooms} ${t.bedrooms}` : null, item.areaSqm ? `${item.areaSqm} ${t.sqm}` : null].filter(Boolean).join(' · ')}
         </Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   card: { width: 240, backgroundColor: colors.surface, borderRadius: radius.md, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, ...shadow },
+  wide: { width: '100%' },
   media: {
     height: 130,
     backgroundColor: colors.sandLight,

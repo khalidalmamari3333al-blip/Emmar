@@ -18,9 +18,10 @@ export interface HomeScreenProps {
   loadFeatured?: (city: City) => Promise<FeaturedResult>;
   onSearch?: () => void;
   onCategory?: (kind: ListingKind) => void;
+  onOpen?: (id: string) => void;
 }
 
-export function HomeScreen({ loadFeatured = getFeaturedProperties, onSearch = () => {}, onCategory = () => {} }: HomeScreenProps) {
+export function HomeScreen({ loadFeatured = getFeaturedProperties, onSearch = () => {}, onCategory = () => {}, onOpen = () => {} }: HomeScreenProps) {
   const t = useT();
   const [city, setCity] = useState<City>('sohar');
   // نحفظ المدينة مع النتيجة حتى نعرض مؤشر التحميل عند تغيير المدينة.
@@ -76,23 +77,23 @@ export function HomeScreen({ loadFeatured = getFeaturedProperties, onSearch = ()
               </View>
             )}
           </View>
-          <Featured result={result} />
+          <Featured result={result} onOpen={onOpen} />
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function Featured({ result }: { result: FeaturedResult | null }) {
+function Featured({ result, onOpen }: { result: FeaturedResult | null; onOpen: (id: string) => void }) {
   const t = useT();
   if (!result) return <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.md }} />;
   if (result.status === 'not_configured') return <Text style={styles.notice}>{t.notConfigured}</Text>;
   if (result.status === 'error') return <Text style={[styles.notice, { color: colors.danger }]}>{t.loadError}</Text>;
-  if (result.items.length === 0) return <Text style={styles.notice}>{t.emptyFeatured}</Text>;
+  if (result.data.length === 0) return <Text style={styles.notice}>{t.emptyFeatured}</Text>;
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.md, paddingVertical: spacing.sm }}>
-      {result.items.map((p) => (
-        <PropertyCard key={p.id} item={p} />
+      {result.data.map((p) => (
+        <PropertyCard key={p.id} item={p} onPress={() => onOpen(p.id)} />
       ))}
     </ScrollView>
   );

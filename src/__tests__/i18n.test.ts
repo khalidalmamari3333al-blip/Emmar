@@ -12,12 +12,22 @@ describe('i18n dictionaries', () => {
     const ar = leaves(dictionaries.ar);
     const en = leaves(dictionaries.en);
     expect(ar.map(([k]) => k).sort()).toEqual(en.map(([k]) => k).sort());
-    for (const [k, v] of [...ar, ...en]) expect([k, typeof v === 'string' && v.trim().length > 0]).toEqual([k, true]);
+    for (const [k, v] of [...ar, ...en]) {
+      const text = typeof v === 'function' ? v(3) : v;
+      expect([k, typeof text === 'string' && text.trim().length > 0]).toEqual([k, true]);
+    }
   });
 
   it('pick falls back to the other language when a translation is missing', () => {
     expect(pick({ ar: 'صحار', en: 'Sohar' }, 'en')).toBe('Sohar');
     expect(pick({ ar: 'صحار', en: '' }, 'en')).toBe('صحار');
+  });
+});
+
+describe('Arabic plurals', () => {
+  it('uses correct Arabic number forms for result counts', () => {
+    const r = dictionaries.ar.search.results;
+    expect([r(0), r(1), r(2), r(5), r(11)]).toEqual(['لا نتائج', 'نتيجة واحدة', 'نتيجتان', '5 نتائج', '11 نتيجة']);
   });
 });
 

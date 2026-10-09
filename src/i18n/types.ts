@@ -25,5 +25,36 @@ export interface Strings {
   languageTitle: string;
   languageHint: string;
   languages: Record<Locale, string>;
+  search: {
+    title: string;
+    placeholder: string;
+    filters: string;
+    all: string;
+    city: string;
+    kind: string;
+    type: string;
+    price: string;
+    minPrice: string;
+    maxPrice: string;
+    bedrooms: string;
+    reset: string;
+    results: (n: number) => string;
+    empty: string;
+  };
+  types: Record<'apartment' | 'studio' | 'villa' | 'land' | 'student_housing', string>;
+  detail: {
+    notFound: string;
+    description: string;
+    noDescription: string;
+    details: string;
+    area: string;
+    bedrooms: string;
+    type: string;
+    location: string;
+    chooseBed: string;
+    chooseBedSoon: string;
+    requestSoon: string;
+    back: string;
+  };
   tabs: { home: string; search: string; bookings: string; account: string };
 }

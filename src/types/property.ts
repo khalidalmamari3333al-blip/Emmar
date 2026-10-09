@@ -20,3 +20,18 @@ export interface PropertySummary {
   imageUrl?: string;
   featured: boolean;
 }
+
+export interface PropertyDetail extends PropertySummary {
+  description: LocalizedText;
+}
+
+/** فلاتر البحث. كل الحقول اختيارية؛ الحقل الفارغ يعني "الكل". */
+export interface SearchFilters {
+  query?: string;
+  city?: City;
+  kind?: ListingKind;
+  type?: PropertyType;
+  minPrice?: number;
+  maxPrice?: number;
+  minBedrooms?: number;
+}

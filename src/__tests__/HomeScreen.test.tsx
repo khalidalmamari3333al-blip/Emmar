@@ -8,7 +8,7 @@ import { HomeScreen } from '@/screens/HomeScreen';
 import type { City } from '@/types/property';
 
 const mockLoader = (city: City) =>
-  Promise.resolve({ status: 'ok' as const, source: 'mock' as const, items: mockProperties.filter((p) => p.city === city && p.featured) });
+  Promise.resolve({ status: 'ok' as const, source: 'mock' as const, data: mockProperties.filter((p) => p.city === city && p.featured) });
 
 const t = dictionaries.ar;
 const renderIn = (ui: ReactElement, locale: Locale = 'ar') => render(<LocaleProvider initialLocale={locale}>{ui}</LocaleProvider>);
