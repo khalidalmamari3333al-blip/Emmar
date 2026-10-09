@@ -203,5 +203,18 @@ export interface Strings {
     saved: string;
     failed: string;
   };
-  tabs: { home: string; search: string; bookings: string; account: string };
+  assistant: {
+    title: string;
+    intro: string;
+    suggestions: string[];
+    placeholder: string;
+    send: string;
+    thinking: string;
+    disclaimer: string;
+    signInPrompt: string;
+    demo: string;
+    newChat: string;
+    errors: Record<'daily_limit' | 'busy' | 'sign_in' | 'not_configured' | 'error', string>;
+  };
+  tabs: { home: string; search: string; bookings: string; account: string; assistant: string };
 }

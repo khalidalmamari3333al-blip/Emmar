@@ -5,6 +5,7 @@ import http from 'node:http';
 const routes = [
   ['/auth/v1', 'http://localhost:59999'],
   ['/rest/v1', 'http://localhost:53000'],
+  ['/functions/v1/assistant', 'http://localhost:8000'],
 ];
 
 http

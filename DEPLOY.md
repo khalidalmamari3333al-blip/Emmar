@@ -38,3 +38,20 @@ npx expo start --tunnel --clear
 ## 5) لاحقًا: نشر في المتاجر
 بناء تطبيقات المتاجر يتم عبر `eas build` ويتطلب حساب مطوّر Google Play (رسوم لمرة واحدة)
 وApple Developer (اشتراك سنوي). نجهّزه في مرحلة مستقلة.
+
+## 6) تفعيل المساعد الذكي
+المساعد يعمل في Supabase Edge Function اسمها `assistant`، ومفتاح Claude يُحفظ على الخادم فقط.
+
+1. طبّق `supabase/migrations/20261110000001_assistant.sql` في SQL Editor.
+2. أنشئ مفتاح API من https://console.anthropic.com (Settings → API Keys) وأضف رصيدًا.
+3. من مجلد المشروع:
+```bash
+npx supabase login
+npx supabase link --project-ref <ref>          # ref = الجزء الأول من رابط مشروعك
+npx supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+npx supabase functions deploy assistant
+```
+- لا تضع مفتاح Claude في `.env` ولا في التطبيق.
+- النموذج: Claude Opus 5.5، بجهد `medium`. الحد اليومي: 30 رسالة لكل مستخدم (`DAILY_LIMIT` في `supabase/functions/assistant/core.ts`).
+- مفعّل الرجوع التلقائي لنموذج بديل إن رفض النموذج طلبًا لأسباب أمان (`fallbacks: "default"`).
+- راقب التكلفة من لوحة Anthropic Console → Usage.

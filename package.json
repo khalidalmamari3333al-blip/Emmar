@@ -23,6 +23,7 @@
     "react-native-web": "~0.21.0"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.132.1",
     "@testing-library/react-native": "^14.1.0",
     "@types/jest": "^30.0.0",
     "@types/react": "~19.2.2",

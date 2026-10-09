@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 
-import { BedIcon, HouseIcon, KeyIcon, SearchIcon } from '@/components/omani/icons';
+import { BedIcon, HouseIcon, KeyIcon, SearchIcon, SparkleIcon } from '@/components/omani/icons';
 import { useT } from '@/i18n';
 import { colors } from '@/theme';
 
@@ -17,6 +17,7 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="index" options={{ title: t.tabs.home, tabBarIcon: ({ color }) => <HouseIcon size={22} color={color} /> }} />
       <Tabs.Screen name="search" options={{ title: t.tabs.search, tabBarIcon: ({ color }) => <SearchIcon size={22} color={color} /> }} />
+      <Tabs.Screen name="assistant" options={{ title: t.tabs.assistant, tabBarIcon: ({ color }) => <SparkleIcon size={22} color={color} /> }} />
       <Tabs.Screen name="bookings" options={{ title: t.tabs.bookings, tabBarIcon: ({ color }) => <BedIcon size={22} color={color} /> }} />
       <Tabs.Screen name="account" options={{ title: t.tabs.account, tabBarIcon: ({ color }) => <KeyIcon size={22} color={color} /> }} />
     </Tabs>

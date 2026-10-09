@@ -195,4 +195,15 @@ select pg_temp.as_user('00000000-0000-4000-8000-0000000000e2');
 select pg_temp.expect_error($$insert into storage.objects (bucket_id, name) values ('property-images', 'random/evil.jpg')$$, '*', 'student cannot upload property images');
 reset role;
 
+-- ===== 10. حصة المساعد =====
+select pg_temp.check(public.assistant_take_quota('00000000-0000-4000-8000-0000000000e1', 2), 'assistant quota: first message allowed');
+select pg_temp.check(public.assistant_take_quota('00000000-0000-4000-8000-0000000000e1', 2), 'assistant quota: second message allowed');
+select pg_temp.check(not public.assistant_take_quota('00000000-0000-4000-8000-0000000000e1', 2), 'assistant quota: over the daily limit is refused');
+select pg_temp.check((select count from public.assistant_usage where user_id = '00000000-0000-4000-8000-0000000000e1') = 2, 'refused message is not counted');
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e1');
+select pg_temp.expect_error($$select public.assistant_take_quota(auth.uid(), 1000)$$, '42501', 'users cannot call the quota function to reset or raise their limit');
+update public.assistant_usage set count = 0;
+reset role;
+select pg_temp.check((select count from public.assistant_usage where user_id = '00000000-0000-4000-8000-0000000000e1') = 2, 'users cannot reset their usage directly (RLS hides the rows)');
+
 \echo 'ALL DATABASE TESTS PASSED'

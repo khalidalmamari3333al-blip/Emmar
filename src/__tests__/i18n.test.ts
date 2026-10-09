@@ -3,7 +3,7 @@ import { mapPropertyRow } from '@/services/properties';
 
 function leaves(obj: object, prefix = ''): [string, unknown][] {
   return Object.entries(obj).flatMap(([k, v]) =>
-    v && typeof v === 'object' ? leaves(v, `${prefix}${k}.`) : [[`${prefix}${k}`, v] as [string, unknown]],
+    v && typeof v === 'object' && !Array.isArray(v) ? leaves(v, `${prefix}${k}.`) : [[`${prefix}${k}`, v] as [string, unknown]],
   );
 }
 
@@ -13,7 +13,7 @@ describe('i18n dictionaries', () => {
     const en = leaves(dictionaries.en);
     expect(ar.map(([k]) => k).sort()).toEqual(en.map(([k]) => k).sort());
     for (const [k, v] of [...ar, ...en]) {
-      const text = typeof v === 'function' ? v(3, 5) : v;
+      const text = typeof v === 'function' ? v(3, 5) : Array.isArray(v) ? v.join(' ') : v;
       expect([k, typeof text === 'string' && text.trim().length > 0]).toEqual([k, true]);
     }
   });

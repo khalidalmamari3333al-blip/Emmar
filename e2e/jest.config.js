@@ -8,4 +8,5 @@ module.exports = {
   transformIgnorePatterns: ['/node_modules/(?!expo/virtual/)'],
   moduleNameMapper: { '^@/(.*)$': '<rootDir>/src/$1' },
   testTimeout: 30000,
+  forceExit: true, // اتصالات fetch المفتوحة قد تُبقي Jest معلقًا
 };

@@ -32,3 +32,10 @@ export const SearchIcon = ({ size = 20, color = colors.textMuted }: P) => (
     <Path d="M20 20l-4-4" />
   </Svg>
 );
+
+export const SparkleIcon = ({ size = 24, color = colors.primary }: P) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinejoin="round">
+    <Path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" />
+    <Path d="M19 16l.7 1.8 1.8.7-1.8.7L19 21l-.7-1.8-1.8-.7 1.8-.7z" />
+  </Svg>
+);
