@@ -142,7 +142,7 @@ export const liveSource: LiveSource = {
 
 // ---------- واجهة الشاشات ----------
 
-async function run<T>(config: AppConfig, mock: () => T, live: () => Promise<T>): Promise<DataResult<T>> {
+export async function run<T>(config: AppConfig, mock: () => T, live: () => Promise<T>): Promise<DataResult<T>> {
   if (config.useMockData) return { status: 'ok', source: 'mock', data: mock() };
   if (!isSupabaseConfigured(config)) return { status: 'not_configured' };
   try {

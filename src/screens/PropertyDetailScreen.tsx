@@ -14,9 +14,10 @@ export interface PropertyDetailScreenProps {
   id: string;
   load?: (id: string) => Promise<DataResult<PropertyDetail | null>>;
   onBack?: () => void;
+  onChooseBed?: () => void;
 }
 
-export function PropertyDetailScreen({ id, load = getPropertyById, onBack }: PropertyDetailScreenProps) {
+export function PropertyDetailScreen({ id, load = getPropertyById, onBack, onChooseBed }: PropertyDetailScreenProps) {
   const { t, locale } = useLocale();
   const [loaded, setLoaded] = useState<{ id: string; result: DataResult<PropertyDetail | null> } | null>(null);
 
@@ -77,12 +78,11 @@ export function PropertyDetailScreen({ id, load = getPropertyById, onBack }: Pro
             <Text style={styles.h2}>{t.detail.description}</Text>
             <Text style={styles.description}>{pick(p.description, locale) || t.detail.noDescription}</Text>
 
-            {/* الإجراءات غير المنجزة معطلة وموضحة — لا أزرار شكلية */}
+            {/* طلب الحجز لغير السكن الطلابي لم يُنجز بعد — نوضح ذلك بدل زر شكلي */}
             {p.kind === 'student' ? (
-              <View style={[styles.cta, styles.ctaDisabled]} accessibilityState={{ disabled: true }}>
+              <Pressable style={({ pressed }) => [styles.cta, pressed && { opacity: 0.85 }]} accessibilityRole="button" onPress={onChooseBed}>
                 <Text style={styles.ctaText}>{t.detail.chooseBed}</Text>
-                <Text style={styles.ctaHint}>{t.detail.chooseBedSoon}</Text>
-              </View>
+              </Pressable>
             ) : (
               <Text style={styles.soon}>{t.detail.requestSoon}</Text>
             )}
@@ -131,8 +131,6 @@ const styles = StyleSheet.create({
   factValue: { fontSize: font.body, fontWeight: '700', color: colors.text, marginTop: 2 },
   description: { fontSize: font.body, color: colors.text, lineHeight: 24 },
   cta: { marginTop: spacing.lg, borderRadius: radius.md, padding: spacing.md, alignItems: 'center', backgroundColor: colors.primary, ...shadow },
-  ctaDisabled: { opacity: 0.55 },
   ctaText: { color: colors.white, fontWeight: '800', fontSize: font.body },
-  ctaHint: { color: colors.sandLight, fontSize: font.small, marginTop: 2 },
   soon: { marginTop: spacing.lg, color: colors.textMuted, fontSize: font.small, textAlign: 'center' },
 });

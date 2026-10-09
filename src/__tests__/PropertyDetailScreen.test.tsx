@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { dictionaries, Locale, LocaleProvider } from '@/i18n';
 import { PropertyDetailScreen } from '@/screens/PropertyDetailScreen';
@@ -30,10 +30,21 @@ describe('PropertyDetailScreen', () => {
     expect(screen.getByText('Muscat, Al Azaiba')).toBeTruthy();
   });
 
-  it('marks bed selection as not yet available for student housing (no fake button)', async () => {
-    const t = dictionaries.ar;
-    await renderIn('mock-2');
-    expect(await screen.findByText(t.detail.chooseBedSoon)).toBeTruthy();
+  it('opens the bed picker for student housing', async () => {
+    const onChooseBed = jest.fn();
+    await render(
+      <LocaleProvider initialLocale="ar">
+        <PropertyDetailScreen id="mock-2" load={load} onChooseBed={onChooseBed} />
+      </LocaleProvider>,
+    );
+    await fireEvent.press(await screen.findByText(dictionaries.ar.detail.chooseBed));
+    expect(onChooseBed).toHaveBeenCalled();
+  });
+
+  it('does not offer bed selection for regular rentals', async () => {
+    await renderIn('mock-1');
+    await screen.findByText('شقة غرفتين قرب الكورنيش');
+    expect(screen.queryByText(dictionaries.ar.detail.chooseBed)).toBeNull();
   });
 
   it('shows a not-found message for unknown ids', async () => {

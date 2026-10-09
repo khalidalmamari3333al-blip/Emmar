@@ -52,9 +52,33 @@ export interface Strings {
     type: string;
     location: string;
     chooseBed: string;
-    chooseBedSoon: string;
     requestSoon: string;
     back: string;
+  };
+  beds: {
+    title: string;
+    building: string;
+    floor: string;
+    floorLabel: (level: number) => string;
+    room: (code: string) => string;
+    bed: (code: string) => string;
+    available: string;
+    booked: string;
+    maintenance: string;
+    selected: string;
+    startDate: string;
+    duration: string;
+    months: (n: number) => string;
+    semester: string;
+    checkout: string;
+    perMonth: string;
+    total: string;
+    selectPrompt: string;
+    noLayout: string;
+    availableCount: (available: number, total: number) => string;
+    sendRequest: string;
+    sendRequestSoon: string;
+    selectionCleared: string;
   };
   tabs: { home: string; search: string; bookings: string; account: string };
 }

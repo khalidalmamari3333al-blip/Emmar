@@ -13,7 +13,7 @@ describe('i18n dictionaries', () => {
     const en = leaves(dictionaries.en);
     expect(ar.map(([k]) => k).sort()).toEqual(en.map(([k]) => k).sort());
     for (const [k, v] of [...ar, ...en]) {
-      const text = typeof v === 'function' ? v(3) : v;
+      const text = typeof v === 'function' ? v(3, 5) : v;
       expect([k, typeof text === 'string' && text.trim().length > 0]).toEqual([k, true]);
     }
   });
@@ -28,6 +28,8 @@ describe('Arabic plurals', () => {
   it('uses correct Arabic number forms for result counts', () => {
     const r = dictionaries.ar.search.results;
     expect([r(0), r(1), r(2), r(5), r(11)]).toEqual(['لا نتائج', 'نتيجة واحدة', 'نتيجتان', '5 نتائج', '11 نتيجة']);
+    const m = dictionaries.ar.beds.months;
+    expect([m(1), m(2), m(4), m(12)]).toEqual(['شهر واحد', 'شهران', '4 أشهر', '12 شهرًا']);
   });
 });
 
