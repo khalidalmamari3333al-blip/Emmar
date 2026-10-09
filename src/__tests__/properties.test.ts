@@ -55,20 +55,20 @@ describe('matchesFilters', () => {
   });
 
   it('filters by city, kind and type', () => {
-    expect(ids({ city: 'muscat' })).toEqual(['mock-3', 'mock-4']);
-    expect(ids({ kind: 'sale' })).toEqual(['mock-3', 'mock-5']);
-    expect(ids({ type: 'student_housing' })).toEqual(['mock-2']);
+    expect(ids({ city: 'muscat' })).toEqual(['mock-3', 'mock-4', 'mock-10', 'mock-11', 'mock-12', 'mock-13', 'mock-14', 'mock-15', 'mock-16']);
+    expect(ids({ kind: 'sale' })).toEqual(['mock-3', 'mock-5', 'mock-8', 'mock-12', 'mock-13', 'mock-16']);
+    expect(ids({ type: 'student_housing' })).toEqual(['mock-2', 'mock-9', 'mock-15']);
   });
 
   it('filters by price range (inclusive) and minimum bedrooms', () => {
-    expect(ids({ kind: 'rent', minPrice: 180, maxPrice: 220 })).toEqual(['mock-1', 'mock-4']);
-    expect(ids({ minBedrooms: 3 })).toEqual(['mock-3']);
+    expect(ids({ kind: 'rent', minPrice: 180, maxPrice: 220 })).toEqual(['mock-1', 'mock-4', 'mock-14']);
+    expect(ids({ minBedrooms: 3 })).toEqual(['mock-3', 'mock-7', 'mock-8', 'mock-11', 'mock-16']);
   });
 
   it('searches Arabic and English titles and districts, case-insensitively', () => {
     expect(ids({ query: 'الخوير' })).toEqual(['mock-4']);
-    expect(ids({ query: 'VILLA' })).toEqual(['mock-3']);
-    expect(ids({ query: 'humbar' })).toEqual(['mock-2']);
+    expect(ids({ query: 'VILLA' })).toEqual(['mock-3', 'mock-7', 'mock-11', 'mock-16']);
+    expect(ids({ query: 'humbar' })).toEqual(['mock-2', 'mock-7']);
   });
 });
 

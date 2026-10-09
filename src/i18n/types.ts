@@ -13,6 +13,8 @@ export interface Strings {
   categoriesTitle: string;
   categories: Record<'rent' | 'sale' | 'student', { title: string; subtitle: string }>;
   featuredTitle: string;
+  how: { title: string; steps: { title: string; body: string }[]; owners: string };
+  demoBanner: { title: string; body: string };
   emptyFeatured: string;
   notConfigured: string;
   loadError: string;

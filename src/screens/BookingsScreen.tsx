@@ -13,7 +13,7 @@ import { FadeIn, stagger } from '@/components/motion';
 
 const STATUS_COLOR: Record<BookingStatus, { bg: string; fg: string }> = {
   pending: { bg: '#FBEFD9', fg: colors.clay },
-  confirmed: { bg: '#DCEBE5', fg: colors.primaryDark },
+  confirmed: { bg: colors.successLight, fg: colors.success },
   rejected: { bg: '#F3DEDB', fg: colors.danger },
   cancelled: { bg: '#ECE8E3', fg: colors.textMuted },
   expired: { bg: '#ECE8E3', fg: colors.textMuted },

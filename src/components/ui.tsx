@@ -87,7 +87,7 @@ export function Pill({ label, tone = 'neutral' }: { label: string; tone?: 'neutr
 
 const PILL = {
   neutral: { bg: '#ECE8E3', fg: colors.textMuted },
-  good: { bg: '#DCEBE5', fg: colors.primaryDark },
+  good: { bg: colors.successLight, fg: colors.success },
   warn: { bg: '#FBEFD9', fg: colors.clay },
   bad: { bg: '#F3DEDB', fg: colors.danger },
   accent: { bg: colors.accent, fg: colors.white },

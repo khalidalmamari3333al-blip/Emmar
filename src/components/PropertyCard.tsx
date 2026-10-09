@@ -2,7 +2,7 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 
 import { PressableScale } from '@/components/motion';
 
-import { OmaniSkyline } from '@/components/omani/OmaniSkyline';
+import { PropertyIllustration } from '@/components/omani/PropertyIllustration';
 import { pick, useLocale } from '@/i18n';
 import { formatPrice } from '@/services/properties';
 import { colors, font, fonts, radius, shadow, spacing } from '@/theme';
@@ -23,7 +23,9 @@ export function PropertyCard({ item, onPress, wide = false }: { item: PropertySu
         {item.imageUrl ? (
           <Image source={{ uri: item.imageUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
         ) : (
-          <OmaniSkyline width={240} height={80} color={colors.clay} opacity={0.25} />
+          <View style={StyleSheet.absoluteFill}>
+            <PropertyIllustration type={item.type} seed={item.id} width="100%" height="100%" />
+          </View>
         )}
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{t.categories[item.kind].title}{item.kind !== 'student' ? ` · ${t.types[item.type]}` : ''}</Text>

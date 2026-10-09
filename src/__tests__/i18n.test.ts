@@ -13,7 +13,7 @@ describe('i18n dictionaries', () => {
     const en = leaves(dictionaries.en);
     expect(ar.map(([k]) => k).sort()).toEqual(en.map(([k]) => k).sort());
     for (const [k, v] of [...ar, ...en]) {
-      const text = typeof v === 'function' ? v(3, 5) : Array.isArray(v) ? v.join(' ') : v;
+      const text = typeof v === 'function' ? v(3, 5) : Array.isArray(v) ? v.map((x) => (typeof x === 'string' ? x : Object.values(x).join(' '))).join(' ') : v;
       expect([k, typeof text === 'string' && text.trim().length > 0]).toEqual([k, true]);
     }
   });

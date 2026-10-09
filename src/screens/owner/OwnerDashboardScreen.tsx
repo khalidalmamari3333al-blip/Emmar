@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { OmaniSkyline } from '@/components/omani/OmaniSkyline';
+import { PropertyIllustration } from '@/components/omani/PropertyIllustration';
 import { Button, Gate, Notice, Pill, ScreenHeader, StatTile } from '@/components/ui';
 import { pick, useLocale } from '@/i18n';
 import { isOwnerRole, useAuth } from '@/lib/auth';
@@ -83,7 +83,7 @@ export function OwnerDashboardScreen({
               <FadeIn key={p.id} delay={stagger(i)}>
               <Pressable style={styles.card} onPress={() => onEdit(p.id)} accessibilityRole="button" testID={`owner-property-${p.id}`}>
                 <View style={styles.thumb}>
-                  {p.imageUrl ? <Image source={{ uri: p.imageUrl }} style={StyleSheet.absoluteFill} /> : <OmaniSkyline width={90} height={36} color={colors.clay} opacity={0.3} />}
+                  {p.imageUrl ? <Image source={{ uri: p.imageUrl }} style={StyleSheet.absoluteFill} /> : <PropertyIllustration type={p.input.type} seed={p.id} width="100%" height="100%" />}
                 </View>
                 <View style={{ flex: 1, gap: 4 }}>
                   <Text style={styles.title} numberOfLines={2}>

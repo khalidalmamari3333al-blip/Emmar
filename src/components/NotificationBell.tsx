@@ -60,6 +60,6 @@ export function NotificationBell({
 }
 
 const styles = StyleSheet.create({
-  badge: { position: 'absolute', top: -4, end: -6, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.primary },
+  badge: { position: 'absolute', top: -4, end: -6, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.sandLight },
   badgeText: { color: colors.white, fontFamily: fonts.bodyBold, fontSize: 10 },
 });

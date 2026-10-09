@@ -24,14 +24,14 @@ const lastFilters = (search: jest.Mock) => search.mock.calls.at(-1)?.[0];
 describe('SearchScreen', () => {
   it('shows all listings with a result count and the demo badge', async () => {
     await setup();
-    expect(await screen.findByText(t.search.results(5))).toBeTruthy();
+    expect(await screen.findByText(t.search.results(16))).toBeTruthy();
     expect(screen.getByText(t.mockBadge)).toBeTruthy();
   });
 
   it('starts from the category passed in (e.g. from the home screen)', async () => {
     const { search } = await setup({ kind: 'student' });
     expect(await screen.findByTestId('property-mock-2')).toBeTruthy();
-    expect(screen.getByText(t.search.results(1))).toBeTruthy();
+    expect(screen.getByText(t.search.results(3))).toBeTruthy();
     expect(lastFilters(search)).toEqual({ kind: 'student' });
     // لا معنى لفلتر غرف النوم في السكن الطلابي
     await fireEvent.press(screen.getByTestId('toggle-filters'));
@@ -41,26 +41,26 @@ describe('SearchScreen', () => {
 
   it('filters by city and kind chips', async () => {
     const { search } = await setup();
-    await screen.findByText(t.search.results(5));
+    await screen.findByText(t.search.results(16));
     await fireEvent.press(screen.getByTestId('toggle-filters'));
     await fireEvent.press(screen.getByText(t.cities.muscat));
     await fireEvent.press(screen.getByText(t.categories.sale.title));
-    expect(await screen.findByText(t.search.results(1))).toBeTruthy();
+    expect(await screen.findByText(t.search.results(4))).toBeTruthy();
     expect(screen.getByTestId('property-mock-3')).toBeTruthy();
     expect(lastFilters(search)).toEqual({ city: 'muscat', kind: 'sale' });
   });
 
   it('applies text and price filters, and can reset them', async () => {
     await setup();
-    await screen.findByText(t.search.results(5));
+    await screen.findByText(t.search.results(16));
     await fireEvent.press(screen.getByTestId('toggle-filters'));
     await fireEvent.changeText(screen.getByLabelText(t.search.maxPrice), '٢٠٠');
     await act(() => new Promise((r) => setTimeout(r, 10)));
-    expect(await screen.findByText(t.search.results(2))).toBeTruthy(); // 45 و 180
+    expect(await screen.findByText(t.search.results(5))).toBeTruthy(); // 45، 55، 60، 150، 180
 
     await fireEvent.press(screen.getByText(t.search.reset));
     await act(() => new Promise((r) => setTimeout(r, 10)));
-    expect(await screen.findByText(t.search.results(5))).toBeTruthy();
+    expect(await screen.findByText(t.search.results(16))).toBeTruthy();
 
     await fireEvent.changeText(screen.getByLabelText(t.search.placeholder), 'الخوير');
     await act(() => new Promise((r) => setTimeout(r, 10)));
@@ -79,7 +79,7 @@ describe('SearchScreen', () => {
   });
 
   it('shows an empty state when nothing matches', async () => {
-    await setup({ minBedrooms: 4, kind: 'rent' });
+    await setup({ minBedrooms: 7, kind: 'rent' });
     expect(await screen.findByText(t.search.empty)).toBeTruthy();
   });
 

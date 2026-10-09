@@ -32,6 +32,19 @@ describe('HomeScreen', () => {
     expect(screen.queryByTestId('property-mock-1')).toBeNull();
   });
 
+  it('explains the product in three steps and labels demo mode clearly', async () => {
+    await renderIn(<HomeScreen loadFeatured={mockLoader} />);
+    expect(screen.getByText(t.how.title)).toBeTruthy();
+    for (const step of t.how.steps) expect(screen.getByText(step.title)).toBeTruthy();
+    expect(await screen.findByTestId('demo-banner')).toBeTruthy();
+  });
+
+  it('shows no demo banner for real listings', async () => {
+    await renderIn(<HomeScreen loadFeatured={async () => ({ status: 'ok', source: 'live', data: [] })} />);
+    await screen.findByText(t.emptyFeatured);
+    expect(screen.queryByTestId('demo-banner')).toBeNull();
+  });
+
   it('tells the user honestly when the database is not configured', async () => {
     await renderIn(<HomeScreen loadFeatured={() => Promise.resolve({ status: 'not_configured' })} />);
     expect(await screen.findByText(t.notConfigured)).toBeTruthy();

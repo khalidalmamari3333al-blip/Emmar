@@ -16,7 +16,7 @@ export function bedState(bed: BedInfo, availability: Availability | null, select
 }
 
 const SEAT: Record<BedState, { bg: string; border: string; text: string }> = {
-  available: { bg: colors.surface, border: colors.primary, text: colors.primary },
+  available: { bg: colors.surface, border: colors.success, text: colors.success },
   selected: { bg: colors.accent, border: colors.accent, text: colors.white },
   booked: { bg: '#E7E2DB', border: '#D5CEC4', text: '#A79D92' },
   maintenance: { bg: colors.sandLight, border: colors.sand, text: colors.clay },

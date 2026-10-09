@@ -3,7 +3,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CrenellationDivider } from '@/components/omani/CrenellationDivider';
-import { OmaniSkyline } from '@/components/omani/OmaniSkyline';
+import { PropertyIllustration } from '@/components/omani/PropertyIllustration';
 import { MockBadge, StatusNotice } from '@/components/StatusNotice';
 import { pick, useLocale } from '@/i18n';
 import { DataResult, formatPrice, getPropertyById } from '@/services/properties';
@@ -49,7 +49,9 @@ export function PropertyDetailScreen({ id, load = getPropertyById, onBack, onCho
             {p.imageUrl ? (
               <Image source={{ uri: p.imageUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" accessibilityIgnoresInvertColors />
             ) : (
-              <OmaniSkyline width={380} height={130} color={colors.clay} opacity={0.25} />
+              <View style={StyleSheet.absoluteFill}>
+                <PropertyIllustration type={p.type} seed={p.id} width="100%" height="100%" />
+              </View>
             )}
           </View>
 
@@ -57,7 +59,8 @@ export function PropertyDetailScreen({ id, load = getPropertyById, onBack, onCho
           <FadeIn delay={120} style={styles.body}>
             {result?.status === 'ok' && result.source === 'mock' && <MockBadge />}
             <Text style={styles.kind}>
-              {t.categories[p.kind].title} · {t.types[p.type]}
+              {t.categories[p.kind].title}
+              {p.kind !== 'student' ? ` · ${t.types[p.type]}` : ''}
             </Text>
             <Text style={styles.title}>{pick(p.title, locale)}</Text>
             <Text style={styles.meta}>

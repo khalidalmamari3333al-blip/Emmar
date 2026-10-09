@@ -15,6 +15,19 @@ export const en: Strings = {
     student: { title: 'Student housing', subtitle: 'Book your bed' },
   },
   featuredTitle: 'Featured properties',
+  how: {
+    title: 'How Aqari Oman works',
+    steps: [
+      { title: 'Search', body: 'Flats, villas, land and student housing in Sohar and Muscat, or ask the smart assistant about your budget and needs.' },
+      { title: 'Choose', body: 'Full details for every listing; in student housing you pick the building, floor, room and bed on the plan.' },
+      { title: 'Book', body: 'Send a request; the bed is held for you for 48 hours until the owner approves, with a notification at every step.' },
+    ],
+    owners: 'For owners and developers: a dashboard to manage properties, buildings, beds and booking requests.',
+  },
+  demoBanner: {
+    title: 'Demo version',
+    body: 'Listings here are illustrative examples. Sign-in, booking, the smart assistant and the owner dashboard work in the version connected to the database.',
+  },
   emptyFeatured: 'No properties published in this city yet.',
   notConfigured: 'The database is not connected yet. Add your Supabase settings to .env.',
   loadError: 'Could not load properties.',

@@ -1,16 +1,21 @@
-/** لوحة ألوان مستوحاة من العمارة العُمانية: طين القلاع، جص البيوت، نخيل الجبل الأخضر، ونحاس الخنجر. */
+/**
+ * لوحة ألوان مستوحاة من العمارة العُمانية الحديثة الكلاسيكية (دار الأوبرا السلطانية مسقط):
+ * حجر عاجي، رمل دافئ، خشب منحوت، ونحاس مذهّب. الأخضر الزيتوني محجوز للدلالة (متاح / مؤكد).
+ */
 export const colors = {
-  background: '#FAF7F2', // أبيض الجص
-  surface: '#FFFFFF',
-  sand: '#C9A27E', // طين قلعة نزوى
-  sandLight: '#EFE3D3',
-  clay: '#8B5E3C', // طوب بهلاء
-  primary: '#2F5D50', // أخضر النخيل
-  primaryDark: '#1F4037',
-  accent: '#B8863B', // نحاس الخنجر
-  text: '#2B2420',
-  textMuted: '#7A6E64',
-  border: '#E6DCCF',
-  danger: '#A63D32',
+  background: '#F6F0E6', // حجر عاجي
+  surface: '#FFFCF7',
+  sand: '#D9C5A6', // حجر جيري
+  sandLight: '#EFE5D5',
+  clay: '#8A6A4A', // خشب منحوت
+  primary: '#7A5C3E', // برونز / جوز
+  primaryDark: '#5A4229',
+  accent: '#B8924A', // نحاس مذهّب
+  success: '#5E7D5A', // زيتوني — متاح / مؤكد
+  successLight: '#E4EBDF',
+  text: '#2E2419',
+  textMuted: '#7D7062',
+  border: '#E7DCCB',
+  danger: '#A4483A',
   white: '#FFFFFF',
 } as const;
