@@ -3,11 +3,19 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 import { isSupabaseConfigured, readConfig } from '@/lib/config';
 import { getSupabase } from '@/lib/supabase';
 
+export type UserRole = 'user' | 'owner' | 'admin';
+
 export interface AuthUser {
   id: string;
   email: string;
   fullName?: string;
+  phone?: string;
+  /** من جدول profiles؛ يُستخدم لإظهار اللوحات فقط — الحماية الفعلية في RLS. */
+  role: UserRole;
 }
+
+export const isOwnerRole = (u: AuthUser | null) => u?.role === 'owner' || u?.role === 'admin';
+export const isAdminRole = (u: AuthUser | null) => u?.role === 'admin';
 
 export type AuthErrorCode = 'invalid_credentials' | 'email_taken' | 'weak_password' | 'email_not_confirmed' | 'invalid_email' | 'rate_limited' | 'unknown';
 
@@ -20,6 +28,7 @@ export interface AuthBackend {
   signIn(email: string, password: string): Promise<AuthResult>;
   signUp(fullName: string, email: string, password: string): Promise<AuthResult>;
   signOut(): Promise<void>;
+  updateProfile(userId: string, patch: { fullName?: string; phone?: string }): Promise<boolean>;
 }
 
 export type AuthStatus = 'loading' | 'signed_in' | 'signed_out' | 'demo' | 'not_configured';
@@ -30,10 +39,21 @@ interface AuthContextValue {
   signIn: AuthBackend['signIn'];
   signUp: AuthBackend['signUp'];
   signOut: () => Promise<void>;
+  updateProfile: (patch: { fullName?: string; phone?: string }) => Promise<boolean>;
+  /** يعيد قراءة الملف الشخصي (مثلًا بعد تغيير الدور) */
+  refresh: () => Promise<void>;
 }
 
 const unavailable = async (): Promise<AuthResult> => ({ ok: false, code: 'unknown' });
-const AuthContext = createContext<AuthContextValue>({ status: 'loading', user: null, signIn: unavailable, signUp: unavailable, signOut: async () => {} });
+const AuthContext = createContext<AuthContextValue>({
+  status: 'loading',
+  user: null,
+  signIn: unavailable,
+  signUp: unavailable,
+  signOut: async () => {},
+  updateProfile: async () => false,
+  refresh: async () => {},
+});
 
 export function mapAuthError(e: { code?: string; status?: number; message?: string } | null | undefined): AuthErrorCode {
   const code = e?.code ?? '';
@@ -50,15 +70,35 @@ export function supabaseBackend(): AuthBackend | null {
   const supabase = getSupabase();
   if (!supabase) return null;
   type SbUser = { id: string; email?: string; user_metadata?: { full_name?: string } };
-  const toUser = (u: SbUser | null | undefined): AuthUser | null => (u ? { id: u.id, email: u.email ?? '', fullName: u.user_metadata?.full_name } : null);
+  const toUser = async (u: SbUser | null | undefined): Promise<AuthUser | null> => {
+    if (!u) return null;
+    const { data } = await supabase.from('profiles').select('full_name,phone,role').eq('id', u.id).maybeSingle();
+    return {
+      id: u.id,
+      email: u.email ?? '',
+      fullName: data?.full_name ?? u.user_metadata?.full_name ?? undefined,
+      phone: data?.phone ?? undefined,
+      role: (data?.role as UserRole | undefined) ?? 'user',
+    };
+  };
   return {
     async current() {
       const { data } = await supabase.auth.getSession();
       return toUser(data.session?.user);
     },
     subscribe(cb) {
-      const { data } = supabase.auth.onAuthStateChange((_e, session) => cb(toUser(session?.user)));
+      // لا ننتظر داخل المستمع (توصية Supabase)؛ نقرأ الملف الشخصي بعده.
+      const { data } = supabase.auth.onAuthStateChange((_e, session) => {
+        setTimeout(() => toUser(session?.user).then(cb, () => cb(null)), 0);
+      });
       return () => data.subscription.unsubscribe();
+    },
+    async updateProfile(userId, patch) {
+      const row: Record<string, string | null> = {};
+      if (patch.fullName !== undefined) row.full_name = patch.fullName.trim() || null;
+      if (patch.phone !== undefined) row.phone = patch.phone.trim() || null;
+      const { data, error } = await supabase.from('profiles').update(row).eq('id', userId).select('id');
+      return !error && (data?.length ?? 0) > 0;
     },
     async signIn(email, password) {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -106,8 +146,23 @@ export function AuthProvider({ children, backend }: { children: ReactNode; backe
   const signOut = useCallback(async () => {
     await real?.signOut();
   }, [real]);
+  const refresh = useCallback(async () => {
+    if (!real) return;
+    const u = await real.current().catch(() => null);
+    setState({ status: u ? 'signed_in' : 'signed_out', user: u });
+  }, [real]);
+  const userId = state.user?.id;
+  const updateProfile = useCallback(
+    async (patch: { fullName?: string; phone?: string }) => {
+      if (!real || !userId) return false;
+      const ok = await real.updateProfile(userId, patch);
+      if (ok) await refresh();
+      return ok;
+    },
+    [real, userId, refresh],
+  );
 
-  const value = useMemo(() => ({ ...state, signIn, signUp, signOut }), [state, signIn, signUp, signOut]);
+  const value = useMemo(() => ({ ...state, signIn, signUp, signOut, updateProfile, refresh }), [state, signIn, signUp, signOut, updateProfile, refresh]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

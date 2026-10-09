@@ -7,6 +7,7 @@
     "@supabase/supabase-js": "^2.117.3",
     "expo": "~57.0.27",
     "expo-constants": "~57.0.21",
+    "expo-image-picker": "~57.0.20",
     "expo-linking": "~57.0.12",
     "expo-localization": "~57.0.2",
     "expo-router": "~57.0.25",
@@ -40,7 +41,9 @@
     "test": "jest",
     "typecheck": "tsc --noEmit",
     "test:db": "bash supabase/tests/run.sh",
-    "test:e2e": "bash e2e/run.sh"
+    "test:e2e": "bash e2e/run.sh",
+    "build:web": "expo export --platform web --clear",
+    "deploy:web": "npm run build:web && npx eas-cli@latest deploy --prod"
   },
   "private": true,
   "jest": {

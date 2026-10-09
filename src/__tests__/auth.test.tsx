@@ -2,8 +2,9 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { dictionaries, LocaleProvider } from '@/i18n';
 import { AuthBackend, AuthProvider, isValidEmail, mapAuthError } from '@/lib/auth';
+import { ltr } from '@/lib/bidi';
 import { AccountScreen } from '@/screens/AccountScreen';
-import { fakeAuthBackend, STUDENT } from '@/test-utils/fakeAuth';
+import { fakeAuthBackend, OWNER, STUDENT } from '@/test-utils/fakeAuth';
 
 const t = dictionaries.ar;
 
@@ -69,7 +70,7 @@ describe('AccountScreen', () => {
 
   it('shows the signed-in user and signs out', async () => {
     await renderAccount(fakeAuthBackend(STUDENT));
-    expect(await screen.findByText(STUDENT.email)).toBeTruthy();
+    expect(await screen.findByText(ltr(STUDENT.email))).toBeTruthy();
     await fireEvent.press(screen.getByText(t.auth.signOut));
     expect(await screen.findByText(t.auth.signInTitle)).toBeTruthy();
   });
@@ -77,6 +78,31 @@ describe('AccountScreen', () => {
   it('is honest in demo mode and when Supabase is missing', async () => {
     await renderAccount('demo');
     expect(screen.getByText(t.auth.demoMode)).toBeTruthy();
+  });
+
+  it('shows dashboard buttons by role and saves the phone number', async () => {
+    const updateProfile = jest.fn(async () => true);
+    const onOpenOwner = jest.fn();
+    await render(
+      <LocaleProvider initialLocale="ar">
+        <AuthProvider backend={fakeAuthBackend(OWNER, { updateProfile })}>
+          <AccountScreen onOpenOwner={onOpenOwner} />
+        </AuthProvider>
+      </LocaleProvider>,
+    );
+    await fireEvent.press(await screen.findByTestId('open-owner'));
+    expect(onOpenOwner).toHaveBeenCalled();
+    expect(screen.queryByTestId('open-admin')).toBeNull();
+    await fireEvent.changeText(screen.getByLabelText(t.profile.phone), '+968 9000 0000');
+    await fireEvent.press(screen.getByTestId('save-profile'));
+    expect(updateProfile).toHaveBeenCalledWith(OWNER.id, { fullName: OWNER.fullName, phone: '+968 9000 0000' });
+    expect(await screen.findByText(t.profile.saved)).toBeTruthy();
+  });
+
+  it('regular users see no dashboards', async () => {
+    await renderAccount(fakeAuthBackend(STUDENT));
+    await screen.findByText(ltr(STUDENT.email));
+    expect(screen.queryByTestId('open-owner')).toBeNull();
   });
 
   it('says the database is not connected when there is no backend', async () => {

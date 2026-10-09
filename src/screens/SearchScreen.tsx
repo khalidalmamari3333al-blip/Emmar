@@ -9,16 +9,11 @@ import { MockBadge, StatusNotice } from '@/components/StatusNotice';
 import { useT } from '@/i18n';
 import { DataResult, searchProperties } from '@/services/properties';
 import { colors, font, radius, spacing } from '@/theme';
-import type { City, ListingKind, PropertySummary, PropertyType, SearchFilters } from '@/types/property';
+import { City, ListingKind, PropertySummary, PropertyType, SearchFilters, TYPES_BY_KIND } from '@/types/property';
 
 const CITIES: City[] = ['sohar', 'muscat'];
 const KINDS: ListingKind[] = ['rent', 'sale', 'student'];
-const TYPES_BY_KIND: Record<ListingKind | 'all', PropertyType[]> = {
-  all: ['apartment', 'studio', 'villa', 'land', 'student_housing'],
-  rent: ['apartment', 'studio', 'villa'],
-  sale: ['apartment', 'villa', 'land'],
-  student: ['student_housing'],
-};
+const ALL_TYPES: PropertyType[] = ['apartment', 'studio', 'villa', 'land', 'student_housing'];
 
 /** يحوّل نص حقل السعر إلى رقم، أو undefined إن كان فارغًا/غير صالح. يقبل الأرقام العربية. */
 export function parsePrice(text: string): number | undefined {
@@ -64,7 +59,7 @@ export function SearchScreen({ initialFilters = {}, search = searchProperties, o
 
   const result = loaded?.key === key ? loaded.result : null;
   const set = (patch: Partial<SearchFilters>) => setFilters((f) => ({ ...f, ...patch }));
-  const types = TYPES_BY_KIND[filters.kind ?? 'all'];
+  const types = filters.kind ? TYPES_BY_KIND[filters.kind] : ALL_TYPES;
   const hasFilters = useMemo(() => Object.values(filters).some((v) => v !== undefined), [filters]);
 
   const reset = () => {

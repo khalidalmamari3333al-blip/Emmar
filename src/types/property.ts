@@ -35,3 +35,12 @@ export interface SearchFilters {
   maxPrice?: number;
   minBedrooms?: number;
 }
+
+export type ListingStatus = 'draft' | 'published' | 'archived';
+
+/** أنواع العقار المسموحة لكل نوع عرض (نفس قيود الواجهة؛ الخادم يفرض السعر حسب النوع). */
+export const TYPES_BY_KIND: Record<ListingKind, PropertyType[]> = {
+  rent: ['apartment', 'studio', 'villa'],
+  sale: ['apartment', 'villa', 'land'],
+  student: ['student_housing'],
+};

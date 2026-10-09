@@ -148,4 +148,51 @@ select pg_temp.check((select status from public.bookings where bed_id = (select 
 update public.bookings set expires_at = now() - interval '1 minute' where bed_id = (select id from t_bed3) and status = 'pending';
 select pg_temp.check(public.expire_stale_bookings() = 1, 'cleanup job expires stale requests');
 
+-- ===== 7. لوحة المالك =====
+update public.profiles set full_name = 'طالب ثان', phone = '+96890000000' where id = '00000000-0000-4000-8000-0000000000e2';
+select pg_temp.as_user('00000000-0000-4000-8000-00000000d001');
+select pg_temp.check((select count(*) from public.owner_booking_requests()) > 0, 'owner sees requests on own properties');
+select pg_temp.check((select bool_or(requester_phone = '+96890000000') from public.owner_booking_requests()), 'owner sees requester name and phone');
+select pg_temp.check((select properties from public.owner_dashboard_stats()) = 4, 'owner stats count own properties');
+select pg_temp.check((select beds from public.owner_dashboard_stats()) = 8, 'owner stats count own beds');
+reset role;
+
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e3');
+select pg_temp.check((select count(*) from public.owner_booking_requests()) = 0, 'another owner sees none of these requests');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e2');
+select pg_temp.check((select count(*) from public.owner_booking_requests()) = 0, 'a student cannot use the owner inbox to see others');
+select pg_temp.expect_error($$select public.admin_list_users(null)$$, '42501', 'non-admin cannot list users');
+select pg_temp.expect_error($$select public.admin_set_role('00000000-0000-4000-8000-0000000000e2', 'admin')$$, '42501', 'non-admin cannot change roles');
+select pg_temp.expect_error($$select public.admin_set_featured('00000000-0000-4000-8000-0000000000a9', true)$$, '42501', 'non-admin cannot feature listings');
+reset role;
+select pg_temp.as_user(null);
+select pg_temp.expect_error($$select * from public.owner_booking_requests()$$, '42501', 'anonymous cannot call owner functions');
+reset role;
+
+-- ===== 8. الإدارة =====
+insert into auth.users (id, email) values ('00000000-0000-4000-8000-0000000000ad', 'admin@example.com');
+update public.profiles set role = 'admin' where id = '00000000-0000-4000-8000-0000000000ad';
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000ad');
+select pg_temp.check((select count(*) from public.admin_list_users('example.com')) >= 5, 'admin lists users with email');
+select public.admin_set_role('00000000-0000-4000-8000-0000000000e1', 'owner');
+select pg_temp.check((select role from public.profiles where id = '00000000-0000-4000-8000-0000000000e1') = 'owner', 'admin promotes a user to owner');
+select pg_temp.expect_error($$select public.admin_set_role('00000000-0000-4000-8000-0000000000ad', 'user')$$, '42501', 'admin cannot demote themselves');
+select public.admin_set_featured('00000000-0000-4000-8000-0000000000a9', true);
+select pg_temp.check((select featured from public.properties where id = '00000000-0000-4000-8000-0000000000a9'), 'admin features a listing');
+select pg_temp.check((select count(*) from public.properties) = 4, 'admin sees drafts too');
+reset role;
+
+-- ===== 9. صور العقارات (Storage) =====
+select pg_temp.as_user('00000000-0000-4000-8000-00000000d001');
+insert into storage.objects (bucket_id, name) values ('property-images', '00000000-0000-4000-8000-0000000000a1/cover.jpg');
+select pg_temp.check(true, 'owner uploads into own property folder');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e3');
+select pg_temp.expect_error($$insert into storage.objects (bucket_id, name) values ('property-images', '00000000-0000-4000-8000-0000000000a1/evil.jpg')$$, '42501', 'other owner cannot upload into someone else''s property folder');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e2');
+select pg_temp.expect_error($$insert into storage.objects (bucket_id, name) values ('property-images', 'random/evil.jpg')$$, '*', 'student cannot upload property images');
+reset role;
+
 \echo 'ALL DATABASE TESTS PASSED'

@@ -1,15 +1,18 @@
+import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthForm } from '@/components/AuthForm';
 import { CrenellationDivider } from '@/components/omani/CrenellationDivider';
+import { Button, Field, Notice } from '@/components/ui';
 import { Locale, useLocale } from '@/i18n';
-import { useAuth } from '@/lib/auth';
+import { isAdminRole, isOwnerRole, useAuth } from '@/lib/auth';
+import { ltr } from '@/lib/bidi';
 import { colors, font, radius, spacing } from '@/theme';
 
 const LOCALES: Locale[] = ['ar', 'en'];
 
-export function AccountScreen() {
+export function AccountScreen({ onOpenOwner = () => {}, onOpenAdmin = () => {} }: { onOpenOwner?: () => void; onOpenAdmin?: () => void } = {}) {
   const { t, locale, setLocale } = useLocale();
   const auth = useAuth();
   return (
@@ -21,11 +24,18 @@ export function AccountScreen() {
         <View style={styles.card}>
           <Text style={styles.hintStart}>{t.auth.signedInAs}</Text>
           {auth.user.fullName ? <Text style={styles.h2}>{auth.user.fullName}</Text> : null}
-          <Text style={styles.email}>{auth.user.email}</Text>
+          <Text style={styles.email}>{ltr(auth.user.email)}</Text>
           <Pressable onPress={auth.signOut} accessibilityRole="button" style={styles.signOut}>
             <Text style={styles.signOutText}>{t.auth.signOut}</Text>
           </Pressable>
         </View>
+      )}
+      {auth.status === 'signed_in' && auth.user && (
+        <>
+          {isOwnerRole(auth.user) && <Button label={t.owner.openDashboard} onPress={onOpenOwner} testID="open-owner" />}
+          {isAdminRole(auth.user) && <Button label={t.admin.openDashboard} onPress={onOpenAdmin} variant="secondary" testID="open-admin" />}
+          <ProfileCard key={auth.user.id} />
+        </>
       )}
       {auth.status === 'signed_out' && <AuthForm />}
       {auth.status === 'demo' && <Text style={styles.hint}>{t.auth.demoMode}</Text>}
@@ -57,6 +67,30 @@ export function AccountScreen() {
       <CrenellationDivider />
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function ProfileCard() {
+  const { t } = useLocale();
+  const auth = useAuth();
+  const [name, setName] = useState(auth.user?.fullName ?? '');
+  const [phone, setPhone] = useState(auth.user?.phone ?? '');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ text: string; tone: 'success' | 'error' } | null>(null);
+  const save = async () => {
+    setBusy(true);
+    const ok = await auth.updateProfile({ fullName: name, phone });
+    setBusy(false);
+    setMsg(ok ? { text: t.profile.saved, tone: 'success' } : { text: t.profile.failed, tone: 'error' });
+  };
+  return (
+    <View style={styles.card}>
+      <Text style={styles.h2}>{t.profile.title}</Text>
+      <Field label={t.auth.fullName} value={name} onChangeText={setName} autoComplete="name" />
+      <Field label={t.profile.phone} value={phone} onChangeText={setPhone} keyboardType="phone-pad" hint={t.profile.phoneHint} autoComplete="tel" placeholder="+968 9XXX XXXX" />
+      {msg && <Notice text={msg.text} tone={msg.tone} />}
+      <Button label={t.profile.save} onPress={save} busy={busy} small variant="secondary" testID="save-profile" />
+    </View>
   );
 }
 

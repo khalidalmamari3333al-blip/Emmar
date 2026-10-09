@@ -122,5 +122,86 @@ export interface Strings {
     cancelFailed: string;
     unknownProperty: string;
   };
+  owner: {
+    dashboard: string;
+    openDashboard: string;
+    notOwner: string;
+    stats: { properties: string; published: string; beds: string; occupied: string; pending: string };
+    myProperties: string;
+    addProperty: string;
+    noProperties: string;
+    requests: string;
+    status: Record<'draft' | 'published' | 'archived', string>;
+    featured: string;
+    edit: string;
+    newProperty: string;
+    editProperty: string;
+    sections: { basics: string; location: string; titles: string; price: string; description: string; photo: string; publishing: string; structure: string };
+    fields: {
+      kind: string; type: string; city: string; districtAr: string; districtEn: string; titleAr: string; titleEn: string;
+      descriptionAr: string; descriptionEn: string; priceMonthly: string; priceTotal: string; priceStudentHint: string; bedrooms: string; area: string;
+    };
+    errors: Record<'required' | 'too_short' | 'too_long' | 'invalid_number' | 'type_mismatch', string>;
+    fixErrors: string;
+    save: string;
+    create: string;
+    saving: string;
+    saved: string;
+    saveFailed: string;
+    notAllowed: string;
+    pickPhoto: string;
+    changePhoto: string;
+    uploading: string;
+    uploadFailed: string;
+    photoAfterSave: string;
+    structureAfterSave: string;
+    publishHint: string;
+    preview: string;
+    structure: {
+      buildings: string; addBuilding: string; buildingNameAr: string; buildingNameEn: string; addFloor: string;
+      noBuildings: string; noFloors: string; noRooms: string; generator: string; roomsCount: string; bedsPerRoom: string; bedPrice: string;
+      generate: string; generated: (n: number) => string; tapBedHint: string; deleteRoom: string; roomInUse: string; invalidGenerator: string;
+    };
+  };
+  requests: {
+    title: string;
+    tabs: { pending: string; confirmed: string; other: string };
+    empty: string;
+    requester: string;
+    noName: string;
+    approve: string;
+    reject: string;
+    cancel: string;
+    whatsapp: string;
+    call: string;
+    actionFailed: string;
+    expiredCannotApprove: string;
+  };
+  admin: {
+    dashboard: string;
+    openDashboard: string;
+    notAdmin: string;
+    tabs: { users: string; properties: string };
+    searchUsers: string;
+    roles: Record<'user' | 'owner' | 'admin', string>;
+    you: string;
+    roleChanged: string;
+    roleFailed: string;
+    noUsers: string;
+    filterAll: string;
+    feature: string;
+    unfeature: string;
+    publish: string;
+    archive: string;
+    noProperties: string;
+  };
+  profile: {
+    title: string;
+    phone: string;
+    phoneHint: string;
+    save: string;
+    saved: string;
+    failed: string;
+  };
   tabs: { home: string; search: string; bookings: string; account: string };
 }
