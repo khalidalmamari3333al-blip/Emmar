@@ -34,12 +34,15 @@ describe('SearchScreen', () => {
     expect(screen.getByText(t.search.results(1))).toBeTruthy();
     expect(lastFilters(search)).toEqual({ kind: 'student' });
     // لا معنى لفلتر غرف النوم في السكن الطلابي
+    await fireEvent.press(screen.getByTestId('toggle-filters'));
+    expect(screen.getByTestId('filter-city')).toBeTruthy();
     expect(screen.queryByTestId('filter-bedrooms')).toBeNull();
   });
 
   it('filters by city and kind chips', async () => {
     const { search } = await setup();
     await screen.findByText(t.search.results(5));
+    await fireEvent.press(screen.getByTestId('toggle-filters'));
     await fireEvent.press(screen.getByText(t.cities.muscat));
     await fireEvent.press(screen.getByText(t.categories.sale.title));
     expect(await screen.findByText(t.search.results(1))).toBeTruthy();
@@ -50,6 +53,7 @@ describe('SearchScreen', () => {
   it('applies text and price filters, and can reset them', async () => {
     await setup();
     await screen.findByText(t.search.results(5));
+    await fireEvent.press(screen.getByTestId('toggle-filters'));
     await fireEvent.changeText(screen.getByLabelText(t.search.maxPrice), '٢٠٠');
     await act(() => new Promise((r) => setTimeout(r, 10)));
     expect(await screen.findByText(t.search.results(2))).toBeTruthy(); // 45 و 180
@@ -62,6 +66,16 @@ describe('SearchScreen', () => {
     await act(() => new Promise((r) => setTimeout(r, 10)));
     expect(await screen.findByText(t.search.results(1))).toBeTruthy();
     expect(screen.getByTestId('property-mock-4')).toBeTruthy();
+  });
+
+  it('keeps the screen simple: extra filters stay hidden and show how many are active', async () => {
+    await setup({ city: 'muscat', minBedrooms: 2 });
+    await screen.findByTestId('toggle-filters');
+    expect(screen.queryByTestId('filter-city')).toBeNull();
+    expect(screen.getByText(t.search.moreFilters(2))).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('toggle-filters'));
+    expect(screen.getByTestId('filter-city')).toBeTruthy();
+    expect(screen.getByText(t.search.hideFilters)).toBeTruthy();
   });
 
   it('shows an empty state when nothing matches', async () => {

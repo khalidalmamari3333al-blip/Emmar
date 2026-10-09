@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChipGroup } from '@/components/ChipGroup';
+import { FadeIn, stagger } from '@/components/motion';
 import { SearchIcon } from '@/components/omani/icons';
 import { PropertyCard } from '@/components/PropertyCard';
 import { MockBadge, StatusNotice } from '@/components/StatusNotice';
-import { useT } from '@/i18n';
+import { useLocale } from '@/i18n';
 import { DataResult, searchProperties } from '@/services/properties';
-import { colors, font, radius, spacing } from '@/theme';
+import { colors, font, fonts, radius, spacing } from '@/theme';
 import { City, ListingKind, PropertySummary, PropertyType, SearchFilters, TYPES_BY_KIND } from '@/types/property';
 
 const CITIES: City[] = ['sohar', 'muscat'];
@@ -31,11 +32,12 @@ export interface SearchScreenProps {
 }
 
 export function SearchScreen({ initialFilters = {}, search = searchProperties, onOpen = () => {}, debounceMs = 300 }: SearchScreenProps) {
-  const t = useT();
+  const { t, locale } = useLocale();
   const [filters, setFilters] = useState<SearchFilters>(initialFilters);
   const [queryText, setQueryText] = useState(initialFilters.query ?? '');
   const [minText, setMinText] = useState(initialFilters.minPrice?.toString() ?? '');
   const [maxText, setMaxText] = useState(initialFilters.maxPrice?.toString() ?? '');
+  const [showFilters, setShowFilters] = useState(false);
   const [loaded, setLoaded] = useState<{ key: string; result: DataResult<PropertySummary[]> } | null>(null);
 
   // حقول النص تُطبَّق بعد توقف الكتابة قليلًا لتقليل الطلبات.
@@ -60,6 +62,7 @@ export function SearchScreen({ initialFilters = {}, search = searchProperties, o
   const result = loaded?.key === key ? loaded.result : null;
   const set = (patch: Partial<SearchFilters>) => setFilters((f) => ({ ...f, ...patch }));
   const types = filters.kind ? TYPES_BY_KIND[filters.kind] : ALL_TYPES;
+  const extraCount = [filters.city, filters.type, filters.minPrice, filters.maxPrice, filters.minBedrooms].filter((v) => v !== undefined).length;
   const hasFilters = useMemo(() => Object.values(filters).some((v) => v !== undefined), [filters]);
 
   const reset = () => {
@@ -73,29 +76,38 @@ export function SearchScreen({ initialFilters = {}, search = searchProperties, o
     <View style={styles.header}>
       <Text style={styles.title}>{t.search.title}</Text>
       <View style={styles.inputWrap}>
-        <SearchIcon />
+        <View style={styles.icon}>
+          <SearchIcon />
+        </View>
         <TextInput
           value={queryText}
           onChangeText={setQueryText}
           placeholder={t.search.placeholder}
           placeholderTextColor={colors.textMuted}
-          style={styles.input}
+          // على الويب لا تتبع خانة الإدخال اتجاه الصفحة تلقائيًا
+          style={[styles.input, Platform.OS === 'web' && { textAlign: locale === 'ar' ? 'right' : 'left' }]}
           returnKeyType="search"
           accessibilityLabel={t.search.placeholder}
         />
       </View>
 
+      <View style={styles.filterBar}>
+        <ChipGroup
+          testID="filter-kind"
+          allLabel={t.search.all}
+          value={filters.kind}
+          onChange={(kind) => set({ kind, type: kind && filters.type && !TYPES_BY_KIND[kind].includes(filters.type) ? undefined : filters.type })}
+          options={KINDS.map((k) => ({ value: k, label: t.categories[k].title }))}
+        />
+      </View>
+      <Pressable onPress={() => setShowFilters((v) => !v)} accessibilityRole="button" style={styles.toggle} testID="toggle-filters">
+        <Text style={styles.toggleText}>{showFilters ? t.search.hideFilters : t.search.moreFilters(extraCount)}</Text>
+      </Pressable>
+
+      {showFilters && (
+      <FadeIn distance={8} style={{ gap: spacing.sm }}>
       <Text style={styles.label}>{t.search.city}</Text>
       <ChipGroup testID="filter-city" allLabel={t.search.all} value={filters.city} onChange={(city) => set({ city })} options={CITIES.map((c) => ({ value: c, label: t.cities[c] }))} />
-
-      <Text style={styles.label}>{t.search.kind}</Text>
-      <ChipGroup
-        testID="filter-kind"
-        allLabel={t.search.all}
-        value={filters.kind}
-        onChange={(kind) => set({ kind, type: kind && filters.type && !TYPES_BY_KIND[kind].includes(filters.type) ? undefined : filters.type })}
-        options={KINDS.map((k) => ({ value: k, label: t.categories[k].title }))}
-      />
 
       {types.length > 1 && (
         <>
@@ -118,6 +130,9 @@ export function SearchScreen({ initialFilters = {}, search = searchProperties, o
         </>
       )}
 
+      </FadeIn>
+      )}
+
       <View style={styles.summaryRow}>
         <Text style={styles.count}>{result?.status === 'ok' ? t.search.results(result.data.length) : ' '}</Text>
         {hasFilters && (
@@ -138,10 +153,10 @@ export function SearchScreen({ initialFilters = {}, search = searchProperties, o
         data={result?.status === 'ok' ? result.data : []}
         keyExtractor={(p) => p.id}
         ListHeaderComponent={header}
-        renderItem={({ item }) => (
-          <View style={styles.item}>
+        renderItem={({ item, index }) => (
+          <FadeIn delay={stagger(index)} style={styles.item}>
             <PropertyCard item={item} wide onPress={() => onOpen(item.id)} />
-          </View>
+          </FadeIn>
         )}
         contentContainerStyle={{ paddingBottom: spacing.xl }}
         keyboardShouldPersistTaps="handled"
@@ -153,16 +168,20 @@ export function SearchScreen({ initialFilters = {}, search = searchProperties, o
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   header: { padding: spacing.lg, paddingBottom: spacing.sm, gap: spacing.sm },
-  title: { fontSize: font.title, fontWeight: '800', color: colors.text },
+  title: { fontFamily: fonts.display, fontSize: font.title, color: colors.text },
   inputWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md },
-  input: { flex: 1, paddingVertical: 12, fontSize: font.body, color: colors.text },
-  label: { marginTop: spacing.sm, fontSize: font.small, color: colors.textMuted, fontWeight: '600' },
+  input: { flex: 1, paddingVertical: 12, fontFamily: fonts.body, fontSize: font.body, color: colors.text },
+  label: { marginTop: spacing.sm, fontFamily: fonts.bodyMedium, fontSize: font.small, color: colors.textMuted },
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   priceInput: { minWidth: 0, width: 0, backgroundColor: colors.surface, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md },
   dash: { color: colors.textMuted },
+  icon: { width: 20, height: 20, flexShrink: 0 },
+  filterBar: { marginTop: spacing.xs },
+  toggle: { alignSelf: 'flex-start', paddingVertical: 6 },
+  toggleText: { color: colors.primary, fontFamily: fonts.bodySemi, fontSize: font.small },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.md },
-  count: { fontSize: font.body, fontWeight: '700', color: colors.text },
-  reset: { fontSize: font.small, color: colors.primary, fontWeight: '700' },
-  empty: { color: colors.textMuted, fontSize: font.body, textAlign: 'center', marginTop: spacing.lg },
+  count: { fontFamily: fonts.bodySemi, fontSize: font.body, color: colors.text },
+  reset: { fontFamily: fonts.bodySemi, fontSize: font.small, color: colors.primary },
+  empty: { color: colors.textMuted, fontFamily: fonts.body, fontSize: font.body, textAlign: 'center', marginTop: spacing.lg },
   item: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
 });

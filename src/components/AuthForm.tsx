@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useT } from '@/i18n';
 import { isValidEmail, MIN_PASSWORD, useAuth } from '@/lib/auth';
-import { colors, font, radius, spacing } from '@/theme';
+import { colors, font, fonts, radius, spacing } from '@/theme';
 
 export function AuthForm() {
   const t = useT();
@@ -78,11 +78,11 @@ export function AuthForm() {
 
 const styles = StyleSheet.create({
   card: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border, gap: spacing.sm },
-  h2: { fontSize: font.h2, fontWeight: '700', color: colors.text },
-  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: 12, fontSize: font.body, color: colors.text, backgroundColor: colors.background },
+  h2: { fontFamily: fonts.displayMedium, fontSize: font.h2, color: colors.text },
+  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: 12, fontFamily: fonts.body, fontSize: font.body, color: colors.text, backgroundColor: colors.background },
   button: { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 12, alignItems: 'center', marginTop: spacing.xs },
-  buttonText: { color: colors.white, fontWeight: '800', fontSize: font.body },
-  link: { color: colors.primary, fontWeight: '700', fontSize: font.small, textAlign: 'center', paddingVertical: spacing.xs },
-  error: { color: colors.danger, fontSize: font.small },
-  info: { color: colors.primary, fontSize: font.small },
+  buttonText: { color: colors.white, fontFamily: fonts.bodyBold, fontSize: font.body },
+  link: { color: colors.primary, fontFamily: fonts.bodySemi, fontSize: font.small, textAlign: 'center', paddingVertical: spacing.xs },
+  error: { color: colors.danger, fontFamily: fonts.body, fontSize: font.small },
+  info: { color: colors.primary, fontFamily: fonts.body, fontSize: font.small },
 });

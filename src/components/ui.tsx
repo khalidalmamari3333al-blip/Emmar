@@ -2,7 +2,7 @@ import { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, TextInputProps, View, ViewStyle } from 'react-native';
 
 import { CrenellationDivider } from '@/components/omani/CrenellationDivider';
-import { colors, font, radius, shadow, spacing } from '@/theme';
+import { colors, font, fonts, radius, shadow, spacing } from '@/theme';
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
@@ -37,7 +37,7 @@ export function Button({
       testID={testID}
       style={({ pressed }) => [styles.btn, small && styles.btnSmall, { backgroundColor: v.bg, borderColor: v.border }, off && { opacity: 0.5 }, pressed && { opacity: 0.8 }, style]}
     >
-      {busy ? <ActivityIndicator color={v.fg} size="small" /> : <Text style={[styles.btnText, small && { fontSize: font.small }, { color: v.fg }]}>{label}</Text>}
+      {busy ? <ActivityIndicator color={v.fg} size="small" /> : <Text style={[styles.btnText, small && { fontFamily: fonts.body, fontSize: font.small }, { color: v.fg }]}>{label}</Text>}
     </Pressable>
   );
 }
@@ -137,22 +137,22 @@ export function Gate({ allowed, loading, message, children }: { allowed: boolean
 const styles = StyleSheet.create({
   btn: { borderRadius: radius.md, borderWidth: 1.5, paddingVertical: 12, paddingHorizontal: spacing.md, alignItems: 'center', justifyContent: 'center', minHeight: 46 },
   btnSmall: { paddingVertical: 6, paddingHorizontal: spacing.sm + 4, minHeight: 34, borderRadius: radius.pill },
-  btnText: { fontWeight: '800', fontSize: font.body },
+  btnText: { fontFamily: fonts.bodyBold, fontSize: font.body },
   field: { gap: 4, flex: 1 },
-  label: { fontSize: font.small, color: colors.textMuted, fontWeight: '600' },
-  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: 10, fontSize: font.body, color: colors.text, backgroundColor: colors.surface, minWidth: 0 },
-  error: { fontSize: 12, color: colors.danger },
-  hint: { fontSize: 12, color: colors.textMuted },
+  label: { fontFamily: fonts.bodyMedium, fontSize: font.small, color: colors.textMuted },
+  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: 10, fontFamily: fonts.body, fontSize: font.body, color: colors.text, backgroundColor: colors.surface, minWidth: 0 },
+  error: { fontFamily: fonts.body, fontSize: 12, color: colors.danger },
+  hint: { fontFamily: fonts.body, fontSize: 12, color: colors.textMuted },
   section: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, gap: spacing.sm, ...shadow },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm },
-  sectionTitle: { fontSize: font.h2 - 2, fontWeight: '800', color: colors.text },
+  sectionTitle: { fontFamily: fonts.display, fontSize: font.h2 - 2, color: colors.text },
   pill: { borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 3, alignSelf: 'flex-start' },
-  pillText: { fontSize: 11, fontWeight: '800' },
+  pillText: { fontFamily: fonts.bodyBold, fontSize: 11 },
   tile: { flexGrow: 1, flexBasis: '30%', backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, alignItems: 'center', ...shadow },
-  tileValue: { fontSize: 24, fontWeight: '800', color: colors.primary },
-  tileLabel: { fontSize: 12, color: colors.textMuted, marginTop: 2, textAlign: 'center' },
+  tileValue: { fontFamily: fonts.display, fontSize: 24, color: colors.primary },
+  tileLabel: { fontFamily: fonts.body, fontSize: 12, color: colors.textMuted, marginTop: 2, textAlign: 'center' },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
-  back: { color: colors.primary, fontWeight: '700', fontSize: font.body },
-  headerTitle: { flex: 1, fontSize: font.h2, fontWeight: '800', color: colors.text },
-  notice: { fontSize: font.body, color: colors.textMuted, textAlign: 'center', marginVertical: spacing.sm },
+  back: { color: colors.primary, fontFamily: fonts.bodySemi, fontSize: font.body },
+  headerTitle: { flex: 1, fontFamily: fonts.display, fontSize: font.h2, color: colors.text },
+  notice: { fontFamily: fonts.body, fontSize: font.body, color: colors.textMuted, textAlign: 'center', marginVertical: spacing.sm },
 });

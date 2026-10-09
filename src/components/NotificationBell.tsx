@@ -5,7 +5,7 @@ import Svg, { Path } from 'react-native-svg';
 import { useT } from '@/i18n';
 import { useAuth } from '@/lib/auth';
 import { NotificationsBackend, supabaseNotifications } from '@/services/notifications';
-import { colors } from '@/theme';
+import { colors, fonts } from '@/theme';
 
 const POLL_MS = 60_000;
 
@@ -61,5 +61,5 @@ export function NotificationBell({
 
 const styles = StyleSheet.create({
   badge: { position: 'absolute', top: -4, end: -6, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.primary },
-  badgeText: { color: colors.white, fontSize: 10, fontWeight: '800' },
+  badgeText: { color: colors.white, fontFamily: fonts.bodyBold, fontSize: 10 },
 });

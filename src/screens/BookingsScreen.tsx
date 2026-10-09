@@ -8,7 +8,8 @@ import { useAuth } from '@/lib/auth';
 import { formatDate } from '@/lib/dates';
 import { BookingStatus, cancelBooking, CancelResult, canCancel, listMyBookings, MyBooking } from '@/services/bookings';
 import { DataResult, formatPrice } from '@/services/properties';
-import { colors, font, radius, shadow, spacing } from '@/theme';
+import { colors, font, fonts, radius, shadow, spacing } from '@/theme';
+import { FadeIn, stagger } from '@/components/motion';
 
 const STATUS_COLOR: Record<BookingStatus, { bg: string; fg: string }> = {
   pending: { bg: '#FBEFD9', fg: colors.clay },
@@ -81,7 +82,11 @@ export function BookingsScreen({ load = listMyBookings, cancel = cancelBooking, 
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
           ListHeaderComponent={<StatusNotice result={current} />}
           ListEmptyComponent={current?.status === 'ok' ? <Text style={styles.notice}>{t.bookings.empty}</Text> : null}
-          renderItem={({ item }) => <BookingCard booking={item} cancel={cancel} onChanged={() => setReload((n) => n + 1)} onOpenProperty={onOpenProperty} />}
+          renderItem={({ item, index }) => (
+            <FadeIn delay={stagger(index)}>
+              <BookingCard booking={item} cancel={cancel} onChanged={() => setReload((n) => n + 1)} onOpenProperty={onOpenProperty} />
+            </FadeIn>
+          )}
         />
       )}
     </SafeAreaView>
@@ -162,24 +167,24 @@ function BookingCard({ booking: b, cancel, onChanged, onOpenProperty }: { bookin
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  title: { fontSize: font.title, fontWeight: '800', color: colors.text, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.sm },
+  title: { fontFamily: fonts.display, fontSize: font.title, color: colors.text, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.sm },
   list: { padding: spacing.lg, paddingTop: spacing.sm, gap: spacing.md },
   center: { alignItems: 'center', padding: spacing.lg, gap: spacing.md },
-  notice: { color: colors.textMuted, fontSize: font.body, textAlign: 'center', marginTop: spacing.lg, paddingHorizontal: spacing.lg },
+  notice: { color: colors.textMuted, fontFamily: fonts.body, fontSize: font.body, textAlign: 'center', marginTop: spacing.lg, paddingHorizontal: spacing.lg },
   cta: { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 12, paddingHorizontal: spacing.xl },
-  ctaText: { color: colors.white, fontWeight: '800', fontSize: font.body },
+  ctaText: { color: colors.white, fontFamily: fonts.bodyBold, fontSize: font.body },
   card: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, gap: 4, ...shadow },
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
-  cardTitle: { fontSize: font.body, fontWeight: '800', color: colors.text },
+  cardTitle: { fontFamily: fonts.bodyBold, fontSize: font.body, color: colors.text },
   pill: { borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 3 },
-  pillText: { fontSize: 11, fontWeight: '800' },
-  meta: { fontSize: font.small, color: colors.textMuted },
-  price: { fontSize: font.small, color: colors.primary, fontWeight: '700' },
-  hold: { fontSize: font.small, color: colors.clay },
-  error: { fontSize: font.small, color: colors.danger },
+  pillText: { fontFamily: fonts.bodyBold, fontSize: 11 },
+  meta: { fontFamily: fonts.body, fontSize: font.small, color: colors.textMuted },
+  price: { fontFamily: fonts.bodySemi, fontSize: font.small, color: colors.primary },
+  hold: { fontFamily: fonts.body, fontSize: font.small, color: colors.clay },
+  error: { fontFamily: fonts.body, fontSize: font.small, color: colors.danger },
   actions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
   danger: { backgroundColor: colors.danger, borderRadius: radius.pill, paddingVertical: 8, paddingHorizontal: spacing.md },
-  dangerText: { color: colors.white, fontWeight: '700', fontSize: font.small },
+  dangerText: { color: colors.white, fontFamily: fonts.bodySemi, fontSize: font.small },
   secondary: { alignSelf: 'flex-start', marginTop: spacing.sm, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, paddingVertical: 8, paddingHorizontal: spacing.md },
-  secondaryText: { color: colors.text, fontWeight: '700', fontSize: font.small },
+  secondaryText: { color: colors.text, fontFamily: fonts.bodySemi, fontSize: font.small },
 });

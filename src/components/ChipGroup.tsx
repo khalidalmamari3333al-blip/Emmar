@@ -1,6 +1,6 @@
 import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 
-import { colors, font, radius, spacing } from '@/theme';
+import { colors, font, fonts, radius, spacing } from '@/theme';
 
 export interface ChipOption<T> {
   value: T;
@@ -46,6 +46,6 @@ const styles = StyleSheet.create({
   row: { gap: spacing.sm, paddingVertical: 2 },
   chip: { paddingVertical: 7, paddingHorizontal: spacing.md, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.sand, backgroundColor: colors.surface },
   chipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
-  label: { color: colors.clay, fontSize: font.small, fontWeight: '600' },
+  label: { color: colors.clay, fontFamily: fonts.bodyMedium, fontSize: font.small },
   labelSelected: { color: colors.white },
 });

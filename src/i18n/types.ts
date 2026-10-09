@@ -38,6 +38,8 @@ export interface Strings {
     maxPrice: string;
     bedrooms: string;
     reset: string;
+    moreFilters: (n: number) => string;
+    hideFilters: string;
     results: (n: number) => string;
     empty: string;
   };

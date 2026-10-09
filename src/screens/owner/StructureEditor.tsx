@@ -6,7 +6,7 @@ import { Button, Field, Notice } from '@/components/ui';
 import { LocalizedText, pick, useLocale } from '@/i18n';
 import { bedsLiveSource } from '@/services/beds';
 import { addBuilding, addFloor, addRooms, deleteRoom, Result, toNumber, updateBed } from '@/services/owner';
-import { colors, font, radius, spacing } from '@/theme';
+import { colors, font, fonts, radius, spacing } from '@/theme';
 import type { BuildingLayout } from '@/types/layout';
 
 const defaultLoad = async (id: string): Promise<Result<BuildingLayout[]>> => {
@@ -204,16 +204,16 @@ export function StructureEditor({
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: spacing.sm },
   floorRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  hint: { fontSize: 12, color: colors.textMuted },
+  hint: { fontFamily: fonts.body, fontSize: 12, color: colors.textMuted },
   room: { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.sand, borderRadius: radius.sm, padding: spacing.sm, gap: spacing.xs },
   roomHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  roomCode: { fontWeight: '800', color: colors.clay, fontSize: font.small },
-  delete: { color: colors.danger, fontSize: 12, fontWeight: '700' },
+  roomCode: { color: colors.clay, fontFamily: fonts.bodyBold, fontSize: font.small },
+  delete: { color: colors.danger, fontFamily: fonts.bodySemi, fontSize: 12 },
   beds: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   bed: { width: 58, paddingVertical: 6, borderRadius: 10, borderWidth: 1.5, borderColor: colors.primary, backgroundColor: colors.surface, alignItems: 'center' },
   bedMaint: { borderStyle: 'dashed', borderColor: colors.sand, backgroundColor: colors.sandLight },
-  bedText: { fontWeight: '800', color: colors.primary },
-  bedPrice: { fontSize: 10, color: colors.textMuted },
+  bedText: { fontFamily: fonts.bodyBold, color: colors.primary },
+  bedPrice: { fontFamily: fonts.body, fontSize: 10, color: colors.textMuted },
   generator: { gap: spacing.sm, backgroundColor: colors.sandLight, borderRadius: radius.sm, padding: spacing.sm },
-  genTitle: { fontWeight: '800', color: colors.text, fontSize: font.small },
+  genTitle: { color: colors.text, fontFamily: fonts.bodyBold, fontSize: font.small },
 });

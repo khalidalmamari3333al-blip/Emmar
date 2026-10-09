@@ -11,7 +11,7 @@ import { formatDate } from '@/lib/dates';
 import { BookingStatus } from '@/services/bookings';
 import { decideRequest, listOwnerRequests, OwnerRequest, Result, whatsappLink } from '@/services/owner';
 import { formatPrice } from '@/services/properties';
-import { colors, font, radius, shadow, spacing } from '@/theme';
+import { colors, font, fonts, radius, shadow, spacing } from '@/theme';
 
 type Tab = 'pending' | 'confirmed' | 'other';
 const tabOf = (s: BookingStatus): Tab => (s === 'pending' ? 'pending' : s === 'confirmed' ? 'confirmed' : 'other');
@@ -135,10 +135,10 @@ const styles = StyleSheet.create({
   list: { padding: spacing.lg, gap: spacing.md },
   card: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, gap: 6, ...shadow },
   top: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start', justifyContent: 'space-between' },
-  title: { flex: 1, fontSize: font.body, fontWeight: '800', color: colors.text },
-  meta: { fontSize: font.small, color: colors.textMuted },
-  price: { fontSize: font.small, color: colors.primary, fontWeight: '700' },
+  title: { flex: 1, fontFamily: fonts.bodyBold, fontSize: font.body, color: colors.text },
+  meta: { fontFamily: fonts.body, fontSize: font.small, color: colors.textMuted },
+  price: { fontFamily: fonts.bodySemi, fontSize: font.small, color: colors.primary },
   person: { backgroundColor: colors.background, borderRadius: radius.sm, padding: spacing.sm, gap: 6 },
-  name: { color: colors.text, fontWeight: '700' },
+  name: { color: colors.text, fontFamily: fonts.bodySemi },
   actions: { flexDirection: 'row', gap: spacing.sm, marginTop: 4 },
 });

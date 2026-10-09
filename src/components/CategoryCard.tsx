@@ -1,16 +1,18 @@
 import { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
+
+import { PressableScale } from '@/components/motion';
 
 import { OmaniArch } from '@/components/omani/OmaniArch';
-import { colors, font, radius, shadow, spacing } from '@/theme';
+import { colors, font, fonts, radius, shadow, spacing } from '@/theme';
 
 export function CategoryCard({ title, subtitle, icon, onPress }: { title: string; subtitle: string; icon: ReactNode; onPress: () => void }) {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress} style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}>
+    <PressableScale accessibilityRole="button" accessibilityLabel={title} onPress={onPress} style={styles.card} containerStyle={{ flex: 1 }} scaleTo={0.95}>
       <OmaniArch size={54}>{icon}</OmaniArch>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.subtitle}>{subtitle}</Text>
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -19,13 +21,11 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
     ...shadow,
   },
-  title: { marginTop: spacing.sm, fontSize: font.body, fontWeight: '700', color: colors.text, textAlign: 'center' },
-  subtitle: { marginTop: 2, fontSize: font.small, color: colors.textMuted, textAlign: 'center' },
+  title: { marginTop: spacing.sm, fontFamily: fonts.bodySemi, fontSize: font.body, color: colors.text, textAlign: 'center' },
+  subtitle: { marginTop: 2, fontFamily: fonts.body, fontSize: font.small, color: colors.textMuted, textAlign: 'center' },
 });

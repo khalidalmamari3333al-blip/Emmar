@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useT } from '@/i18n';
-import { colors, font, radius, spacing } from '@/theme';
+import { colors, font, fonts, radius, spacing } from '@/theme';
 import type { City } from '@/types/property';
 
 const CITIES: City[] = ['sohar', 'muscat'];
@@ -39,6 +39,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   chipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
-  label: { color: colors.clay, fontSize: font.body, fontWeight: '600' },
+  label: { color: colors.clay, fontFamily: fonts.bodyMedium, fontSize: font.body },
   labelSelected: { color: colors.white },
 });

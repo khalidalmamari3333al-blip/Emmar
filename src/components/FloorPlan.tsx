@@ -2,8 +2,9 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import { useT } from '@/i18n';
-import { colors, font, radius, spacing } from '@/theme';
+import { colors, font, fonts, radius, spacing } from '@/theme';
 import type { Availability, BedInfo, FloorLayout, RoomLayout } from '@/types/layout';
+import { Pop } from '@/components/motion';
 
 export type BedState = 'available' | 'booked' | 'maintenance' | 'selected' | 'unknown';
 
@@ -63,8 +64,8 @@ function Room({ room, availability, selectedId, onSelect }: { room: RoomLayout; 
           const c = SEAT[state];
           const stateLabel = { available: t.beds.available, booked: t.beds.booked, maintenance: t.beds.maintenance, selected: t.beds.selected, unknown: '…' }[state];
           return (
+            <Pop key={bed.id} active={state === 'selected'}>
             <Pressable
-              key={bed.id}
               testID={`bed-${bed.id}`}
               accessibilityRole="button"
               accessibilityLabel={`${t.beds.bed(bed.code)}، ${t.beds.room(room.code)}، ${stateLabel}`}
@@ -76,6 +77,7 @@ function Room({ room, availability, selectedId, onSelect }: { room: RoomLayout; 
               <BedGlyph color={c.text} />
               <Text style={[styles.seatCode, { color: c.text }]}>{bed.code}</Text>
             </Pressable>
+            </Pop>
           );
         })}
       </View>
@@ -116,13 +118,13 @@ const styles = StyleSheet.create({
   plan: { backgroundColor: colors.sandLight, borderRadius: radius.md, borderWidth: 3, borderColor: colors.sand, padding: spacing.sm, gap: spacing.sm },
   row: { flexDirection: 'row', gap: spacing.sm },
   room: { backgroundColor: colors.background, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.sand, padding: spacing.sm, gap: spacing.xs },
-  roomLabel: { fontSize: font.small, fontWeight: '700', color: colors.clay },
+  roomLabel: { fontFamily: fonts.bodySemi, fontSize: font.small, color: colors.clay },
   beds: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   seat: { width: 48, height: 48, borderRadius: 10, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', gap: 1 },
-  seatCode: { fontSize: 12, fontWeight: '800' },
+  seatCode: { fontFamily: fonts.bodyBold, fontSize: 12 },
   dashed: { borderStyle: 'dashed' },
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, justifyContent: 'center' },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendDot: { width: 16, height: 16, borderRadius: 4, borderWidth: 1.5 },
-  legendText: { fontSize: font.small, color: colors.textMuted },
+  legendText: { fontFamily: fonts.body, fontSize: font.small, color: colors.textMuted },
 });

@@ -6,7 +6,8 @@ import { Button, Notice, ScreenHeader } from '@/components/ui';
 import { useLocale } from '@/i18n';
 import { useAuth } from '@/lib/auth';
 import { AppNotification, isOwnerKind, notificationText, NotificationsBackend, supabaseNotifications, targetRoute, timeAgo } from '@/services/notifications';
-import { colors, font, radius, spacing } from '@/theme';
+import { colors, font, fonts, radius, spacing } from '@/theme';
+import { FadeIn, stagger } from '@/components/motion';
 
 export interface NotificationsScreenProps {
   backend?: NotificationsBackend | null;
@@ -73,17 +74,19 @@ export function NotificationsScreen({ backend, onNavigate = () => {}, onBack, on
             </>
           }
           ListEmptyComponent={items ? <Notice text={t.notifications.empty} /> : null}
-          renderItem={({ item }) => {
+          renderItem={({ item, index }) => {
             const { title, body } = notificationText(item, t, locale);
             return (
+              <FadeIn delay={stagger(index, 50)}>
               <Pressable onPress={() => open(item)} style={[styles.item, !item.readAt && styles.unread]} accessibilityRole="button" testID={`notification-${item.id}`}>
                 <View style={[styles.dot, { backgroundColor: item.readAt ? 'transparent' : isOwnerKind(item.kind) ? colors.accent : colors.primary }]} />
                 <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={[styles.title, !item.readAt && { fontWeight: '800' }]}>{title}</Text>
+                  <Text style={[styles.title, !item.readAt && { fontFamily: fonts.bodyBold }]}>{title}</Text>
                   <Text style={styles.body}>{body}</Text>
                   <Text style={styles.time}>{timeAgo(item.createdAt, t, now)}</Text>
                 </View>
               </Pressable>
+              </FadeIn>
             );
           }}
         />
@@ -99,7 +102,7 @@ const styles = StyleSheet.create({
   item: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start', backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md },
   unread: { borderColor: colors.sand, backgroundColor: '#FFFCF7' },
   dot: { width: 10, height: 10, borderRadius: 5, marginTop: 6 },
-  title: { fontSize: font.body, fontWeight: '600', color: colors.text },
-  body: { fontSize: font.small, color: colors.textMuted, lineHeight: 20 },
-  time: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+  title: { fontFamily: fonts.bodyMedium, fontSize: font.body, color: colors.text },
+  body: { fontFamily: fonts.body, fontSize: font.small, color: colors.textMuted, lineHeight: 20 },
+  time: { fontFamily: fonts.body, fontSize: 11, color: colors.textMuted, marginTop: 2 },
 });

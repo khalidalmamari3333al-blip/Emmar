@@ -36,7 +36,8 @@
         {
           "color": "#2F5D50"
         }
-      ]
+      ],
+      "expo-font"
     ],
     "scheme": "aqarioman",
     "extra": {

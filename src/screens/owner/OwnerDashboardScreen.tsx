@@ -7,7 +7,8 @@ import { Button, Gate, Notice, Pill, ScreenHeader, StatTile } from '@/components
 import { pick, useLocale } from '@/i18n';
 import { isOwnerRole, useAuth } from '@/lib/auth';
 import { getOwnerStats, listMyProperties, OwnerProperty, OwnerStats, Result } from '@/services/owner';
-import { colors, font, radius, spacing } from '@/theme';
+import { colors, font, fonts, radius, spacing } from '@/theme';
+import { FadeIn, stagger } from '@/components/motion';
 
 export interface OwnerDashboardProps {
   loadStats?: () => Promise<Result<OwnerStats>>;
@@ -78,8 +79,9 @@ export function OwnerDashboardScreen({
           {props && !props.ok && <Notice text={t.loadError} tone="error" />}
           {props?.ok && props.data.length === 0 && <Notice text={t.owner.noProperties} />}
           {props?.ok &&
-            props.data.map((p) => (
-              <Pressable key={p.id} style={styles.card} onPress={() => onEdit(p.id)} accessibilityRole="button" testID={`owner-property-${p.id}`}>
+            props.data.map((p, i) => (
+              <FadeIn key={p.id} delay={stagger(i)}>
+              <Pressable style={styles.card} onPress={() => onEdit(p.id)} accessibilityRole="button" testID={`owner-property-${p.id}`}>
                 <View style={styles.thumb}>
                   {p.imageUrl ? <Image source={{ uri: p.imageUrl }} style={StyleSheet.absoluteFill} /> : <OmaniSkyline width={90} height={36} color={colors.clay} opacity={0.3} />}
                 </View>
@@ -97,6 +99,7 @@ export function OwnerDashboardScreen({
                 </View>
                 <Text style={styles.edit}>{t.owner.edit}</Text>
               </Pressable>
+              </FadeIn>
             ))}
         </ScrollView>
       </Gate>
@@ -109,10 +112,10 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl },
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   actions: { flexDirection: 'row', gap: spacing.sm },
-  h2: { fontSize: font.h2, fontWeight: '800', color: colors.text, marginTop: spacing.sm },
+  h2: { fontFamily: fonts.display, fontSize: font.h2, color: colors.text, marginTop: spacing.sm },
   card: { flexDirection: 'row', gap: spacing.md, alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.sm },
   thumb: { width: 72, height: 72, borderTopLeftRadius: 36, borderTopRightRadius: 36, borderRadius: radius.sm, overflow: 'hidden', backgroundColor: colors.sandLight, alignItems: 'center', justifyContent: 'flex-end' },
-  title: { fontSize: font.body, fontWeight: '800', color: colors.text },
-  meta: { fontSize: font.small, color: colors.textMuted },
-  edit: { color: colors.primary, fontWeight: '700', fontSize: font.small },
+  title: { fontFamily: fonts.bodyBold, fontSize: font.body, color: colors.text },
+  meta: { fontFamily: fonts.body, fontSize: font.small, color: colors.textMuted },
+  edit: { color: colors.primary, fontFamily: fonts.bodySemi, fontSize: font.small },
 });

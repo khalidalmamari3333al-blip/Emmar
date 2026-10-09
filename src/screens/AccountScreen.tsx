@@ -9,7 +9,7 @@ import { Locale, useLocale } from '@/i18n';
 import { isAdminRole, isOwnerRole, useAuth } from '@/lib/auth';
 import { ltr } from '@/lib/bidi';
 import { enablePush, PushStatus, unregisterDevice } from '@/lib/push';
-import { colors, font, radius, spacing } from '@/theme';
+import { colors, font, fonts, radius, spacing } from '@/theme';
 
 const LOCALES: Locale[] = ['ar', 'en'];
 
@@ -133,17 +133,17 @@ function ProfileCard() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, gap: spacing.sm },
-  title: { fontSize: font.title, fontWeight: '800', color: colors.text, marginBottom: spacing.sm },
+  title: { fontFamily: fonts.display, fontSize: font.title, color: colors.text, marginBottom: spacing.sm },
   card: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border, gap: spacing.sm },
-  h2: { fontSize: font.h2, fontWeight: '700', color: colors.text },
+  h2: { fontFamily: fonts.displayMedium, fontSize: font.h2, color: colors.text },
   row: { flexDirection: 'row', gap: spacing.sm },
   option: { flex: 1, alignItems: 'center', paddingVertical: spacing.sm, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.sand },
   optionSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
-  optionText: { fontSize: font.body, fontWeight: '600', color: colors.clay },
+  optionText: { fontFamily: fonts.bodyMedium, fontSize: font.body, color: colors.clay },
   optionTextSelected: { color: colors.white },
-  hintStart: { fontSize: font.small, color: colors.textMuted },
-  email: { fontSize: font.body, color: colors.text },
+  hintStart: { fontFamily: fonts.body, fontSize: font.small, color: colors.textMuted },
+  email: { fontFamily: fonts.body, fontSize: font.body, color: colors.text },
   signOut: { alignSelf: 'flex-start', marginTop: spacing.sm, paddingVertical: 8, paddingHorizontal: spacing.md, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.danger },
-  signOutText: { color: colors.danger, fontWeight: '700', fontSize: font.small },
-  hint: { fontSize: font.small, color: colors.textMuted, textAlign: 'center' },
+  signOutText: { color: colors.danger, fontFamily: fonts.bodySemi, fontSize: font.small },
+  hint: { fontFamily: fonts.body, fontSize: font.small, color: colors.textMuted, textAlign: 'center' },
 });

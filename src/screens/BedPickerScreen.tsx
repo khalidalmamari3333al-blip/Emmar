@@ -11,8 +11,9 @@ import { useAuth } from '@/lib/auth';
 import { getBedAvailability, getBedLayout } from '@/services/beds';
 import { BookingRequest, createBookingRequest, CreateResult } from '@/services/bookings';
 import { DataResult, formatPrice } from '@/services/properties';
-import { colors, font, radius, shadow, spacing } from '@/theme';
+import { colors, font, fonts, radius, shadow, spacing } from '@/theme';
 import type { Availability, BuildingLayout } from '@/types/layout';
+import { FadeIn } from '@/components/motion';
 
 const DURATIONS = [1, 3, 4, 6, 12]; // 4 = فصل دراسي
 
@@ -162,6 +163,7 @@ export function BedPickerScreen({
               })()}
             </View>
             <StatusNotice result={availRes} />
+            <FadeIn key={floor.id} distance={10}>
             <FloorPlan
               floor={floor}
               availability={availability}
@@ -171,6 +173,7 @@ export function BedPickerScreen({
                 setSelectedId(bed.id === selected ? null : bed.id);
               }}
             />
+            </FadeIn>
             <BedLegend />
             {selectionLost && <Text style={styles.warn}>{t.beds.selectionCleared}</Text>}
           </>
@@ -180,7 +183,7 @@ export function BedPickerScreen({
       {building && (
         <View style={styles.summary} testID="booking-summary">
           {located ? (
-            <>
+            <FadeIn key={located.bed.id} distance={8}>
               <Text style={styles.sumTitle}>
                 {t.beds.bed(located.bed.code)} · {t.beds.room(located.r.code)} · {t.beds.floorLabel(located.f.level)}
                 {buildings.length > 1 ? ` · ${pick(located.b.name, locale)}` : ''}
@@ -194,7 +197,7 @@ export function BedPickerScreen({
                   {formatPrice({ priceOmr: located.bed.monthlyPriceOmr * months })} {t.currency}
                 </Text>
               </Text>
-            </>
+            </FadeIn>
           ) : (
             <Text style={styles.sumTitle}>{t.beds.selectPrompt}</Text>
           )}
@@ -291,24 +294,24 @@ function RequestAction({
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   topBar: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
-  back: { color: colors.primary, fontWeight: '700', fontSize: font.body },
-  title: { fontSize: font.h2, fontWeight: '800', color: colors.text },
+  back: { color: colors.primary, fontFamily: fonts.bodySemi, fontSize: font.body },
+  title: { fontFamily: fonts.display, fontSize: font.h2, color: colors.text },
   content: { padding: spacing.lg, gap: spacing.sm, paddingBottom: spacing.xl },
-  label: { marginTop: spacing.sm, fontSize: font.small, color: colors.textMuted, fontWeight: '600' },
-  notice: { color: colors.textMuted, fontSize: font.body, textAlign: 'center', marginTop: spacing.lg },
+  label: { marginTop: spacing.sm, fontFamily: fonts.bodyMedium, fontSize: font.small, color: colors.textMuted },
+  notice: { color: colors.textMuted, fontFamily: fonts.body, fontSize: font.body, textAlign: 'center', marginTop: spacing.lg },
   planHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.md, flexWrap: 'wrap' },
-  planTitle: { fontSize: font.body, fontWeight: '800', color: colors.text },
-  count: { fontSize: font.small, color: colors.primary, fontWeight: '700' },
-  warn: { color: colors.danger, fontSize: font.small, textAlign: 'center' },
+  planTitle: { fontFamily: fonts.bodyBold, fontSize: font.body, color: colors.text },
+  count: { fontFamily: fonts.bodySemi, fontSize: font.small, color: colors.primary },
+  warn: { color: colors.danger, fontFamily: fonts.body, fontSize: font.small, textAlign: 'center' },
   summary: { backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.md, gap: 4, borderTopWidth: 1, borderColor: colors.border, ...shadow },
-  sumTitle: { fontSize: font.body, fontWeight: '800', color: colors.text },
-  sumLine: { fontSize: font.small, color: colors.textMuted },
-  total: { color: colors.primary, fontWeight: '800', fontSize: font.body },
+  sumTitle: { fontFamily: fonts.bodyBold, fontSize: font.body, color: colors.text },
+  sumLine: { fontFamily: fonts.body, fontSize: font.small, color: colors.textMuted },
+  total: { color: colors.primary, fontFamily: fonts.bodyBold, fontSize: font.body },
   cta: { marginTop: spacing.sm, borderRadius: radius.md, paddingVertical: 12, alignItems: 'center', backgroundColor: colors.primary },
   ctaDisabled: { opacity: 0.5 },
-  ctaText: { color: colors.white, fontWeight: '800', fontSize: font.body },
-  error: { color: colors.danger, fontSize: font.small, textAlign: 'center', marginTop: spacing.xs },
+  ctaText: { color: colors.white, fontFamily: fonts.bodyBold, fontSize: font.body },
+  error: { color: colors.danger, fontFamily: fonts.body, fontSize: font.small, textAlign: 'center', marginTop: spacing.xs },
   sent: { gap: 4 },
-  sentTitle: { fontSize: font.body, fontWeight: '800', color: colors.primary },
-  ctaHint: { fontSize: 11, color: colors.textMuted, textAlign: 'center' },
+  sentTitle: { fontFamily: fonts.bodyBold, fontSize: font.body, color: colors.primary },
+  ctaHint: { fontFamily: fonts.body, fontSize: 11, color: colors.textMuted, textAlign: 'center' },
 });

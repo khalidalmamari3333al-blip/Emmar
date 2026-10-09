@@ -40,6 +40,8 @@ export const en: Strings = {
     maxPrice: 'Max',
     bedrooms: 'Bedrooms (min)',
     reset: 'Clear filters',
+    moreFilters: (n) => (n ? `Filters (${n})` : 'Filters'),
+    hideFilters: 'Hide filters',
     results: (n) => (n === 1 ? '1 result' : `${n} results`),
     empty: 'No properties match your search. Try relaxing the filters.',
   },

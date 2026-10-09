@@ -17,7 +17,7 @@ import {
   Result,
   setPropertyStatus,
 } from '@/services/owner';
-import { colors, font, radius, spacing } from '@/theme';
+import { colors, font, fonts, radius, spacing } from '@/theme';
 import type { ListingStatus } from '@/types/property';
 
 export interface AdminScreenProps {
@@ -177,9 +177,9 @@ function PropertiesTab({ listProperties = listAllProperties, setFeatured = admin
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   list: { padding: spacing.lg, gap: spacing.md },
-  search: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 10, backgroundColor: colors.surface, fontSize: font.body, color: colors.text },
+  search: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 10, backgroundColor: colors.surface, fontFamily: fonts.body, fontSize: font.body, color: colors.text },
   card: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, gap: 6 },
-  title: { fontSize: font.body, fontWeight: '800', color: colors.text },
-  meta: { fontSize: font.small, color: colors.textMuted },
+  title: { fontFamily: fonts.bodyBold, fontSize: font.body, color: colors.text },
+  meta: { fontFamily: fonts.body, fontSize: font.small, color: colors.textMuted },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, alignItems: 'center' },
 });

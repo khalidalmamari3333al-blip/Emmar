@@ -9,8 +9,9 @@ import { Button, Notice } from '@/components/ui';
 import { useLocale } from '@/i18n';
 import { useAuth } from '@/lib/auth';
 import { askAssistant, AssistantResult, ChatTurn } from '@/services/assistant';
-import { colors, font, radius, spacing } from '@/theme';
+import { colors, font, fonts, radius, spacing } from '@/theme';
 import type { PropertySummary } from '@/types/property';
+import { FadeIn } from '@/components/motion';
 
 interface Message extends ChatTurn {
   id: number;
@@ -97,7 +98,7 @@ export function AssistantScreen({ ask = (t, l) => askAssistant(t, l), onOpenProp
             </View>
           }
           renderItem={({ item }) => (
-            <View style={{ gap: spacing.sm }}>
+            <FadeIn distance={10} style={{ gap: spacing.sm }}>
               <View style={[styles.bubble, item.role === 'user' ? styles.userBubble : styles.botBubble]} testID={`msg-${item.role}`}>
                 <Text style={[styles.bubbleText, item.role === 'user' && { color: colors.white }]}>{item.content}</Text>
               </View>
@@ -108,7 +109,7 @@ export function AssistantScreen({ ask = (t, l) => askAssistant(t, l), onOpenProp
                   ))}
                 </ScrollView>
               )}
-            </View>
+            </FadeIn>
           )}
           ListFooterComponent={
             <>
@@ -145,20 +146,20 @@ export function AssistantScreen({ ask = (t, l) => askAssistant(t, l), onOpenProp
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
-  title: { flex: 1, fontSize: font.h2, fontWeight: '800', color: colors.text },
+  title: { flex: 1, fontFamily: fonts.display, fontSize: font.h2, color: colors.text },
   center: { padding: spacing.xl, gap: spacing.md, alignItems: 'center' },
   list: { padding: spacing.lg, gap: spacing.md, flexGrow: 1 },
   intro: { gap: spacing.sm, marginTop: spacing.md },
-  introText: { fontSize: font.body, color: colors.textMuted, lineHeight: 24 },
+  introText: { fontFamily: fonts.body, fontSize: font.body, color: colors.textMuted, lineHeight: 24 },
   suggestion: { borderWidth: 1, borderColor: colors.sand, backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md },
-  suggestionText: { color: colors.clay, fontWeight: '600', fontSize: font.small },
+  suggestionText: { color: colors.clay, fontFamily: fonts.bodyMedium, fontSize: font.small },
   bubble: { maxWidth: '88%', borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: 10 },
   userBubble: { alignSelf: 'flex-end', backgroundColor: colors.primary, borderBottomRightRadius: 6 },
   botBubble: { alignSelf: 'flex-start', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderBottomLeftRadius: 6 },
-  bubbleText: { fontSize: font.body, color: colors.text, lineHeight: 23 },
+  bubbleText: { fontFamily: fonts.body, fontSize: font.body, color: colors.text, lineHeight: 23 },
   thinking: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center' },
-  thinkingText: { color: colors.textMuted, fontSize: font.small },
+  thinkingText: { color: colors.textMuted, fontFamily: fonts.body, fontSize: font.small },
   composer: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, borderTopWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
-  input: { flex: 1, maxHeight: 120, minHeight: 42, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: 10, fontSize: font.body, color: colors.text, backgroundColor: colors.background },
-  disclaimer: { fontSize: 11, color: colors.textMuted, textAlign: 'center', paddingVertical: 6, backgroundColor: colors.surface },
+  input: { flex: 1, maxHeight: 120, minHeight: 42, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: 10, fontFamily: fonts.body, fontSize: font.body, color: colors.text, backgroundColor: colors.background },
+  disclaimer: { fontFamily: fonts.body, fontSize: 11, color: colors.textMuted, textAlign: 'center', paddingVertical: 6, backgroundColor: colors.surface },
 });

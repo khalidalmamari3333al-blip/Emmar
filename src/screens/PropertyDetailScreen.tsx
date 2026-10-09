@@ -7,8 +7,9 @@ import { OmaniSkyline } from '@/components/omani/OmaniSkyline';
 import { MockBadge, StatusNotice } from '@/components/StatusNotice';
 import { pick, useLocale } from '@/i18n';
 import { DataResult, formatPrice, getPropertyById } from '@/services/properties';
-import { colors, font, radius, shadow, spacing } from '@/theme';
+import { colors, font, fonts, radius, shadow, spacing } from '@/theme';
 import type { PropertyDetail } from '@/types/property';
+import { FadeIn } from '@/components/motion';
 
 export interface PropertyDetailScreenProps {
   id: string;
@@ -43,6 +44,7 @@ export function PropertyDetailScreen({ id, load = getPropertyById, onBack, onCho
       {result?.status === 'ok' && !p && <Text style={styles.notFound}>{t.detail.notFound}</Text>}
       {p && (
         <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl }}>
+          <FadeIn distance={24}>
           <View style={styles.media}>
             {p.imageUrl ? (
               <Image source={{ uri: p.imageUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" accessibilityIgnoresInvertColors />
@@ -51,7 +53,8 @@ export function PropertyDetailScreen({ id, load = getPropertyById, onBack, onCho
             )}
           </View>
 
-          <View style={styles.body}>
+          </FadeIn>
+          <FadeIn delay={120} style={styles.body}>
             {result?.status === 'ok' && result.source === 'mock' && <MockBadge />}
             <Text style={styles.kind}>
               {t.categories[p.kind].title} · {t.types[p.type]}
@@ -86,7 +89,7 @@ export function PropertyDetailScreen({ id, load = getPropertyById, onBack, onCho
             ) : (
               <Text style={styles.soon}>{t.detail.requestSoon}</Text>
             )}
-          </View>
+          </FadeIn>
         </ScrollView>
       )}
     </SafeAreaView>
@@ -105,8 +108,8 @@ function Fact({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   back: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
-  backText: { color: colors.primary, fontWeight: '700', fontSize: font.body },
-  notFound: { color: colors.textMuted, fontSize: font.body, textAlign: 'center', margin: spacing.xl },
+  backText: { color: colors.primary, fontFamily: fonts.bodySemi, fontSize: font.body },
+  notFound: { color: colors.textMuted, fontFamily: fonts.body, fontSize: font.body, textAlign: 'center', margin: spacing.xl },
   media: {
     height: 230,
     marginHorizontal: spacing.lg,
@@ -120,17 +123,17 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   body: { padding: spacing.lg, gap: spacing.xs },
-  kind: { color: colors.accent, fontWeight: '700', fontSize: font.small, marginTop: spacing.sm },
-  title: { fontSize: font.title, fontWeight: '800', color: colors.text },
-  meta: { fontSize: font.body, color: colors.textMuted },
-  price: { fontSize: 22, fontWeight: '800', color: colors.primary, marginTop: spacing.sm },
-  h2: { fontSize: font.h2, fontWeight: '700', color: colors.text, marginTop: spacing.md, marginBottom: spacing.sm },
+  kind: { color: colors.accent, fontFamily: fonts.bodySemi, fontSize: font.small, marginTop: spacing.sm },
+  title: { fontFamily: fonts.display, fontSize: font.title, color: colors.text },
+  meta: { fontFamily: fonts.body, fontSize: font.body, color: colors.textMuted },
+  price: { fontFamily: fonts.display, fontSize: 22, color: colors.primary, marginTop: spacing.sm },
+  h2: { fontFamily: fonts.displayMedium, fontSize: font.h2, color: colors.text, marginTop: spacing.md, marginBottom: spacing.sm },
   facts: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   fact: { width: '48%', flexGrow: 1, backgroundColor: colors.surface, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, padding: spacing.md },
-  factLabel: { fontSize: font.small, color: colors.textMuted },
-  factValue: { fontSize: font.body, fontWeight: '700', color: colors.text, marginTop: 2 },
-  description: { fontSize: font.body, color: colors.text, lineHeight: 24 },
+  factLabel: { fontFamily: fonts.body, fontSize: font.small, color: colors.textMuted },
+  factValue: { fontFamily: fonts.bodySemi, fontSize: font.body, color: colors.text, marginTop: 2 },
+  description: { fontFamily: fonts.body, fontSize: font.body, color: colors.text, lineHeight: 24 },
   cta: { marginTop: spacing.lg, borderRadius: radius.md, padding: spacing.md, alignItems: 'center', backgroundColor: colors.primary, ...shadow },
-  ctaText: { color: colors.white, fontWeight: '800', fontSize: font.body },
-  soon: { marginTop: spacing.lg, color: colors.textMuted, fontSize: font.small, textAlign: 'center' },
+  ctaText: { color: colors.white, fontFamily: fonts.bodyBold, fontSize: font.body },
+  soon: { marginTop: spacing.lg, color: colors.textMuted, fontFamily: fonts.body, fontSize: font.small, textAlign: 'center' },
 });
