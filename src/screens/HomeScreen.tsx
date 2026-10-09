@@ -5,14 +5,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CategoryCard } from '@/components/CategoryCard';
 import { NotificationBell } from '@/components/NotificationBell';
 import { CityChips } from '@/components/CityChips';
-import { FadeIn, stagger } from '@/components/motion';
+import { FadeIn, PressableScale, stagger } from '@/components/motion';
 import { BedIcon, HouseIcon, KeyIcon } from '@/components/omani/icons';
 import { OmaniArcade } from '@/components/omani/OmaniArcade';
 import { PropertyCard } from '@/components/PropertyCard';
 import { SearchBar } from '@/components/SearchBar';
-import { useT } from '@/i18n';
+import { useLocale, useT } from '@/i18n';
 import { FeaturedResult, getFeaturedProperties } from '@/services/properties';
-import { colors, font, fonts, radius, spacing } from '@/theme';
+import { colors, font, fonts, radius, shadow, spacing } from '@/theme';
 import type { City, ListingKind } from '@/types/property';
 
 export interface HomeScreenProps {
@@ -21,10 +21,12 @@ export interface HomeScreenProps {
   onCategory?: (kind: ListingKind) => void;
   onOpen?: (id: string) => void;
   onNotifications?: () => void;
+  /** وضع العرض: خطوة من جولة المستثمرين (0..4) */
+  onTour?: (step: number) => void;
 }
 
-export function HomeScreen({ loadFeatured = getFeaturedProperties, onSearch = () => {}, onCategory = () => {}, onOpen = () => {}, onNotifications = () => {} }: HomeScreenProps) {
-  const t = useT();
+export function HomeScreen({ loadFeatured = getFeaturedProperties, onSearch = () => {}, onCategory = () => {}, onOpen = () => {}, onNotifications = () => {}, onTour }: HomeScreenProps) {
+  const { t, locale } = useLocale();
   const [city, setCity] = useState<City>('sohar');
   // نحفظ المدينة مع النتيجة حتى نعرض مؤشر التحميل عند تغيير المدينة.
   const [loaded, setLoaded] = useState<{ city: City; result: FeaturedResult } | null>(null);
@@ -65,6 +67,27 @@ export function HomeScreen({ loadFeatured = getFeaturedProperties, onSearch = ()
             <View style={styles.demo} testID="demo-banner">
               <Text style={styles.demoTitle}>{t.demoBanner.title}</Text>
               <Text style={styles.demoBody}>{t.demoBanner.body}</Text>
+            </View>
+          </FadeIn>
+        )}
+
+        {result?.status === 'ok' && result.source === 'mock' && onTour && (
+          <FadeIn delay={125} style={styles.section}>
+            <View style={styles.tour} testID="investor-tour">
+              <Text style={styles.tourTitle}>{t.demo.tourTitle}</Text>
+              <Text style={styles.demoBody}>{t.demo.tourHint}</Text>
+              {t.demo.tour.map((step, i) => (
+                <PressableScale key={step.title} onPress={() => onTour(i)} style={styles.tourStep} accessibilityRole="button" testID={`tour-${i}`}>
+                  <View style={styles.tourNum}>
+                    <Text style={styles.tourNumText}>{i + 1}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.tourStepTitle}>{step.title}</Text>
+                    <Text style={styles.tourStepBody}>{step.body}</Text>
+                  </View>
+                  <Text style={styles.tourGo}>{locale === 'ar' ? '←' : '→'}</Text>
+                </PressableScale>
+              ))}
             </View>
           </FadeIn>
         )}
@@ -167,5 +190,13 @@ const styles = StyleSheet.create({
   stepTitle: { fontFamily: fonts.displayMedium, fontSize: font.body + 1, color: colors.text },
   stepBody: { fontFamily: fonts.body, fontSize: font.small, color: colors.textMuted, lineHeight: 21 },
   owners: { marginTop: spacing.md, fontFamily: fonts.bodyMedium, fontSize: font.small, color: colors.clay },
+  tour: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, gap: spacing.sm, ...shadow },
+  tourTitle: { fontFamily: fonts.display, fontSize: font.h2, color: colors.text },
+  tourStep: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.background, borderRadius: radius.md, padding: spacing.sm + 2 },
+  tourNum: { width: 30, height: 34, borderTopLeftRadius: 15, borderTopRightRadius: 15, borderBottomLeftRadius: 5, borderBottomRightRadius: 5, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+  tourNumText: { color: colors.white, fontFamily: fonts.display, fontSize: 16 },
+  tourStepTitle: { fontFamily: fonts.bodySemi, fontSize: font.body, color: colors.text },
+  tourStepBody: { fontFamily: fonts.body, fontSize: 12, color: colors.textMuted, lineHeight: 18 },
+  tourGo: { fontFamily: fonts.bodyBold, fontSize: font.h2, color: colors.primary },
   notice: { color: colors.textMuted, fontFamily: fonts.body, fontSize: font.body, marginTop: spacing.sm },
 });

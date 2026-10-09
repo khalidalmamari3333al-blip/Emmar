@@ -7,6 +7,7 @@ import {
   listMyBookings,
   mapBookingRow,
 } from '@/services/bookings';
+import { resetDemo } from '@/demo/store';
 
 const LIVE = { useMockData: false, supabaseUrl: 'u', supabaseAnonKey: 'k' };
 const req = { bedId: 'bed-1', start: '2027-01-01', end: '2027-05-01' };
@@ -37,8 +38,12 @@ describe('createBookingRequest', () => {
     expect(await createBookingRequest('u1', req, LIVE, b)).toEqual({ status: 'not_allowed' });
   });
 
-  it('refuses to create anything in demo mode or without Supabase', async () => {
-    expect(await createBookingRequest('u1', req, { useMockData: true })).toEqual({ status: 'demo' });
+  it('in demo mode books locally with the same overlap rule; without Supabase it refuses', async () => {
+    resetDemo();
+    const demoReq = { bedId: 'Y-201-b1', start: '2027-01-01', end: '2027-05-01' };
+    const first = await createBookingRequest('demo-tenant', demoReq, { useMockData: true });
+    expect(first.status).toBe('ok');
+    expect(await createBookingRequest('demo-reem', { ...demoReq, start: '2027-03-01' }, { useMockData: true })).toEqual({ status: 'conflict' });
     expect(await createBookingRequest('u1', req, { useMockData: false })).toEqual({ status: 'not_configured' });
   });
 

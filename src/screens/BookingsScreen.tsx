@@ -58,8 +58,7 @@ export function BookingsScreen({ load = listMyBookings, cancel = cancelBooking, 
   const current = result?.key === key || refreshing ? result?.data ?? null : null;
 
   let body;
-  if (auth.status === 'demo') body = <Text style={styles.notice}>{t.bookings.demo}</Text>;
-  else if (auth.status === 'not_configured') body = <Text style={styles.notice}>{t.notConfigured}</Text>;
+  if (auth.status === 'not_configured') body = <Text style={styles.notice}>{t.notConfigured}</Text>;
   else if (auth.status === 'loading') body = <StatusNotice result={null} />;
   else if (auth.status === 'signed_out')
     body = (

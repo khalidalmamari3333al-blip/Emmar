@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { demoNotifications } from '@/demo/services';
+import { readConfig } from '@/lib/config';
 import { getSupabase } from '@/lib/supabase';
 import type { Locale, Strings } from '@/i18n/types';
 
@@ -53,7 +55,9 @@ export interface NotificationsBackend {
   markAllRead(): Promise<void>;
 }
 
-export function supabaseNotifications(sb: SupabaseClient | null = getSupabase()): NotificationsBackend | null {
+export function supabaseNotifications(sb?: SupabaseClient | null): NotificationsBackend | null {
+  if (sb === undefined && readConfig().useMockData) return demoNotifications;
+  sb = sb === undefined ? getSupabase() : sb;
   if (!sb) return null;
   return {
     async list() {

@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { LocalizedText } from '@/i18n/types';
+import { demoAdmin, demoOwner } from '@/demo/services';
+import { readConfig } from '@/lib/config';
 import { getSupabase } from '@/lib/supabase';
 import type { BookingStatus } from '@/services/bookings';
 import { effectiveStatus } from '@/services/bookings';
@@ -12,6 +14,8 @@ export type Result<T = void> = { ok: true; data: T } | { ok: false; code: 'not_c
 
 const PG_INSUFFICIENT_PRIVILEGE = '42501';
 const PG_FOREIGN_KEY_VIOLATION = '23503';
+
+const demo = () => readConfig().useMockData;
 
 function client(): SupabaseClient | null {
   return getSupabase();
@@ -161,6 +165,7 @@ export function mapOwnerRow(r: OwnerRow, imageUrl?: (p: string) => string): Owne
 const publicUrl = (sb: SupabaseClient) => (path: string) => sb.storage.from(PROPERTY_IMAGES_BUCKET).getPublicUrl(path).data.publicUrl;
 
 export function listMyProperties(ownerId: string) {
+  if (demo()) return Promise.resolve(demoOwner.listMine(ownerId));
   return guard<OwnerProperty[]>(async (sb) => {
     const { data, error } = await sb.from('properties').select(OWNER_COLUMNS).eq('owner_id', ownerId).order('updated_at', { ascending: false });
     if (error) return fail(error);
@@ -170,6 +175,7 @@ export function listMyProperties(ownerId: string) {
 
 /** كل العقارات (للإدارة؛ RLS يسمح للمدير برؤية الكل). */
 export function listAllProperties(status?: ListingStatus) {
+  if (demo()) return Promise.resolve(demoOwner.listAll(status));
   return guard<OwnerProperty[]>(async (sb) => {
     let q = sb.from('properties').select(OWNER_COLUMNS).eq('is_demo', false);
     if (status) q = q.eq('status', status);
@@ -180,6 +186,7 @@ export function listAllProperties(status?: ListingStatus) {
 }
 
 export function getOwnerProperty(id: string) {
+  if (demo()) return Promise.resolve(demoOwner.get(id));
   return guard<OwnerProperty | null>(async (sb) => {
     const { data, error } = await sb.from('properties').select(OWNER_COLUMNS).eq('id', id).maybeSingle();
     if (error) return fail(error);
@@ -188,6 +195,7 @@ export function getOwnerProperty(id: string) {
 }
 
 export function createProperty(ownerId: string, input: PropertyInput) {
+  if (demo()) return Promise.resolve(demoOwner.create(ownerId, input, toNumber));
   return guard<string>(async (sb) => {
     const { data, error } = await sb.from('properties').insert({ ...toPropertyRow(input), owner_id: ownerId }).select('id').single();
     if (error) return fail(error);
@@ -196,6 +204,7 @@ export function createProperty(ownerId: string, input: PropertyInput) {
 }
 
 export function updateProperty(id: string, input: PropertyInput) {
+  if (demo()) return Promise.resolve(demoOwner.update(id, input, toNumber));
   return guard(async (sb) => {
     const { data, error } = await sb.from('properties').update(toPropertyRow(input)).eq('id', id).select('id');
     if (error) return fail(error);
@@ -204,6 +213,7 @@ export function updateProperty(id: string, input: PropertyInput) {
 }
 
 export function setPropertyStatus(id: string, status: ListingStatus) {
+  if (demo()) return Promise.resolve(demoOwner.setStatus(id, status));
   return guard(async (sb) => {
     const { data, error } = await sb.from('properties').update({ status }).eq('id', id).select('id');
     if (error) return fail(error);
@@ -218,6 +228,7 @@ export interface ImageAsset {
 
 /** يرفع صورة الغلاف إلى Storage تحت مجلد العقار (سياسة التخزين تسمح للمالك فقط). */
 export function uploadCover(propertyId: string, asset: ImageAsset) {
+  if (demo()) return Promise.resolve(demoOwner.upload(propertyId, asset));
   return guard<string>(async (sb) => {
     const contentType = asset.mimeType || 'image/jpeg';
     const ext = contentType.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
@@ -248,6 +259,7 @@ export function nextRoomCodes(level: number, existing: string[], count: number):
 }
 
 export function addBuilding(propertyId: string, name: LocalizedText) {
+  if (demo()) return Promise.resolve(demoOwner.addBuilding(propertyId, name));
   return guard<string>(async (sb) => {
     const { data, error } = await sb.from('buildings').insert({ property_id: propertyId, name_ar: name.ar.trim(), name_en: name.en.trim() }).select('id').single();
     if (error) return fail(error);
@@ -256,6 +268,7 @@ export function addBuilding(propertyId: string, name: LocalizedText) {
 }
 
 export function addFloor(buildingId: string, level: number) {
+  if (demo()) return Promise.resolve(demoOwner.addFloor(buildingId, level));
   return guard<string>(async (sb) => {
     const { data, error } = await sb.from('floors').insert({ building_id: buildingId, level }).select('id').single();
     if (error) return fail(error);
@@ -265,6 +278,7 @@ export function addFloor(buildingId: string, level: number) {
 
 /** يضيف عدة غرف بعدد أسرّة وسعر موحّد، ويضعها في شبكة من صفين. */
 export function addRooms(floorId: string, level: number, existingCodes: string[], count: number, bedsPerRoom: number, monthlyPrice: number) {
+  if (demo()) return Promise.resolve(demoOwner.addRooms(floorId, nextRoomCodes(level, existingCodes, count), bedsPerRoom, monthlyPrice));
   return guard<number>(async (sb) => {
     const startIndex = existingCodes.length;
     const codes = nextRoomCodes(level, existingCodes, count);
@@ -286,6 +300,7 @@ export function addRooms(floorId: string, level: number, existingCodes: string[]
 }
 
 export function updateBed(bedId: string, patch: { status?: 'active' | 'maintenance'; monthlyPriceOmr?: number }) {
+  if (demo()) return Promise.resolve(demoOwner.updateBed(bedId, patch));
   return guard(async (sb) => {
     const row: Record<string, unknown> = {};
     if (patch.status) row.status = patch.status;
@@ -298,6 +313,7 @@ export function updateBed(bedId: string, patch: { status?: 'active' | 'maintenan
 
 /** حذف غرفة؛ يُرفض إن كان لأحد أسرّتها حجوزات (in_use) — حماية لسجل الحجوزات. */
 export function deleteRoom(roomId: string) {
+  if (demo()) return Promise.resolve(demoOwner.deleteRoom(roomId));
   return guard(async (sb) => {
     const { data, error } = await sb.from('rooms').delete().eq('id', roomId).select('id');
     if (error) return fail(error);
@@ -355,6 +371,7 @@ export function mapRequestRow(r: RequestRow, now = new Date()): OwnerRequest {
 }
 
 export function listOwnerRequests() {
+  if (demo()) return Promise.resolve(demoOwner.requests());
   return guard<OwnerRequest[]>(async (sb) => {
     const { data, error } = await sb.rpc('owner_booking_requests');
     if (error) return fail(error);
@@ -365,6 +382,7 @@ export function listOwnerRequests() {
 
 /** قرار المالك. قاعدة البيانات تفرض الانتقالات المسموحة (لا تأكيد لطلب منتهٍ مثلًا). */
 export function decideRequest(id: string, status: 'confirmed' | 'rejected' | 'cancelled') {
+  if (demo()) return Promise.resolve(demoOwner.decide(id, status));
   return guard(async (sb) => {
     const { data, error } = await sb.from('bookings').update({ status }).eq('id', id).select('id');
     if (error) return fail(error);
@@ -381,6 +399,7 @@ export interface OwnerStats {
 }
 
 export function getOwnerStats() {
+  if (demo()) return Promise.resolve(demoOwner.stats());
   return guard<OwnerStats>(async (sb) => {
     const { data, error } = await sb.rpc('owner_dashboard_stats').single();
     if (error) return fail(error);
@@ -411,6 +430,7 @@ export interface AdminUser {
 }
 
 export function adminListUsers(search: string) {
+  if (demo()) return Promise.resolve(demoAdmin.listUsers(search));
   return guard<AdminUser[]>(async (sb) => {
     const { data, error } = await sb.rpc('admin_list_users', { p_search: search.trim() || null });
     if (error) return fail(error);
@@ -423,6 +443,7 @@ export function adminListUsers(search: string) {
 }
 
 export function adminSetRole(userId: string, role: AdminUser['role']) {
+  if (demo()) return Promise.resolve(demoAdmin.setRole(userId, role));
   return guard(async (sb) => {
     const { error } = await sb.rpc('admin_set_role', { p_user: userId, p_role: role });
     return error ? fail(error) : { ok: true, data: undefined };
@@ -430,6 +451,7 @@ export function adminSetRole(userId: string, role: AdminUser['role']) {
 }
 
 export function adminSetFeatured(propertyId: string, featured: boolean) {
+  if (demo()) return Promise.resolve(demoAdmin.setFeatured(propertyId, featured));
   return guard(async (sb) => {
     const { error } = await sb.rpc('admin_set_featured', { p_property: propertyId, p_featured: featured });
     return error ? fail(error) : { ok: true, data: undefined };

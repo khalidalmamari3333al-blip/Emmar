@@ -93,13 +93,10 @@ describe('BedPickerScreen', () => {
     expect(screen.getByText(t.beds.selectPrompt)).toBeTruthy();
   });
 
-  it('never pretends to book in demo mode', async () => {
-    const { createRequest } = await setup();
-    await screen.findByText(t.beds.availableCount(5, 9));
-    await fireEvent.press(screen.getByTestId('bed-A-001-b3'));
-    expect(screen.getByText(t.beds.demoNoBooking)).toBeTruthy();
-    await fireEvent.press(screen.getByText(t.beds.sendRequest));
-    expect(createRequest).not.toHaveBeenCalled();
+  it('in demo mode, a signed-out visitor is asked to sign in (with a demo account)', async () => {
+    const { onRequireSignIn } = await setup();
+    await fireEvent.press(await screen.findByText(t.beds.signInToBook));
+    expect(onRequireSignIn).toHaveBeenCalled();
   });
 
   it('asks signed-out users to sign in', async () => {

@@ -1,3 +1,4 @@
+import { demoBookings } from '@/demo/services';
 import { isSupabaseConfigured, readConfig } from '@/lib/config';
 import { ISODate } from '@/lib/dates';
 import { getSupabase } from '@/lib/supabase';
@@ -131,8 +132,9 @@ function backendOrStatus(config = readConfig(), backend?: BookingsBackend | null
 
 export async function createBookingRequest(userId: string, req: BookingRequest, config = readConfig(), backend?: BookingsBackend | null): Promise<CreateResult> {
   const b = backendOrStatus(config, backend);
-  // في وضع البيانات التجريبية لا نتظاهر بإنشاء حجز.
-  if (b === 'demo' || b === 'not_configured') return { status: b };
+  // وضع العرض التفاعلي: حجز محلي في ذاكرة الجهاز فقط (لا يُرسل لأي خادم).
+  if (b === 'demo') return demoBookings.create(userId, req);
+  if (b === 'not_configured') return { status: b };
   try {
     const { id, error } = await b.insert(userId, req);
     if (error?.code === PG_EXCLUSION_VIOLATION) return { status: 'conflict' };
@@ -146,7 +148,7 @@ export async function createBookingRequest(userId: string, req: BookingRequest, 
 
 export async function listMyBookings(userId: string, config = readConfig(), backend?: BookingsBackend | null): Promise<DataResult<MyBooking[]>> {
   const b = backendOrStatus(config, backend);
-  if (b === 'demo') return { status: 'ok', source: 'mock', data: [] };
+  if (b === 'demo') return { status: 'ok', source: 'mock', data: demoBookings.listMine(userId) };
   if (b === 'not_configured') return { status: 'not_configured' };
   try {
     const { rows, error } = await b.listMine(userId);
@@ -160,7 +162,8 @@ export async function listMyBookings(userId: string, config = readConfig(), back
 
 export async function cancelBooking(id: string, config = readConfig(), backend?: BookingsBackend | null): Promise<CancelResult> {
   const b = backendOrStatus(config, backend);
-  if (b === 'demo' || b === 'not_configured') return { status: 'not_allowed' };
+  if (b === 'demo') return demoBookings.cancel(id) ? { status: 'ok' } : { status: 'not_allowed' };
+  if (b === 'not_configured') return { status: 'not_allowed' };
   try {
     const { count, error } = await b.cancel(id);
     if (error?.code === PG_INSUFFICIENT_PRIVILEGE) return { status: 'not_allowed' };

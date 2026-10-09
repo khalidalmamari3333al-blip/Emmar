@@ -7,6 +7,7 @@ import { CrenellationDivider } from '@/components/omani/CrenellationDivider';
 import { Button, Field, Notice } from '@/components/ui';
 import { Locale, useLocale } from '@/i18n';
 import { isAdminRole, isOwnerRole, useAuth } from '@/lib/auth';
+import { resetDemo } from '@/demo/store';
 import { ltr } from '@/lib/bidi';
 import { enablePush, PushStatus, unregisterDevice } from '@/lib/push';
 import { colors, font, fonts, radius, spacing } from '@/theme';
@@ -36,11 +37,10 @@ export function AccountScreen({ onOpenOwner = () => {}, onOpenAdmin = () => {} }
           {isOwnerRole(auth.user) && <Button label={t.owner.openDashboard} onPress={onOpenOwner} testID="open-owner" />}
           {isAdminRole(auth.user) && <Button label={t.admin.openDashboard} onPress={onOpenAdmin} variant="secondary" testID="open-admin" />}
           <ProfileCard key={auth.user.id} />
-          <PushCard />
+          {auth.demo ? <DemoAccounts /> : <PushCard />}
         </>
       )}
-      {auth.status === 'signed_out' && <AuthForm />}
-      {auth.status === 'demo' && <Text style={styles.hint}>{t.auth.demoMode}</Text>}
+      {auth.status === 'signed_out' && (auth.demo ? <DemoAccounts /> : <AuthForm />)}
       {auth.status === 'not_configured' && <Text style={styles.hint}>{t.notConfigured}</Text>}
 
       <View style={{ height: spacing.md }} />
@@ -69,6 +69,41 @@ export function AccountScreen({ onOpenOwner = () => {}, onOpenAdmin = () => {} }
       <CrenellationDivider />
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+/** حسابات العرض: دخول بلمسة، وتبديل بين الأدوار، وإعادة ضبط العرض. */
+function DemoAccounts() {
+  const { t } = useLocale();
+  const auth = useAuth();
+  const [done, setDone] = useState(false);
+  const roles = ['user', 'owner', 'admin'] as const;
+  return (
+    <View style={styles.card} testID="demo-accounts">
+      <Text style={styles.h2}>{auth.status === 'signed_in' ? t.demo.switchTitle : t.demo.accountsTitle}</Text>
+      <Text style={styles.hintStart}>{t.demo.accountsHint}</Text>
+      {roles.map((r) => (
+        <Button
+          key={r}
+          testID={`demo-as-${r}`}
+          variant={auth.user?.role === r ? 'primary' : 'secondary'}
+          label={`${t.demo.roles[r].label} — ${t.demo.roles[r].who}`}
+          onPress={() => auth.signInAs(r)}
+        />
+      ))}
+      <Button
+        small
+        variant="ghost"
+        label={t.demo.reset}
+        testID="demo-reset"
+        onPress={() => {
+          resetDemo();
+          setDone(true);
+        }}
+      />
+      {done && <Notice text={t.demo.resetDone} tone="success" />}
+      <Text style={styles.hintStart}>{t.demo.noPush}</Text>
+    </View>
   );
 }
 

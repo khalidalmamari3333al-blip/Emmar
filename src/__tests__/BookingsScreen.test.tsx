@@ -71,8 +71,8 @@ describe('BookingsScreen', () => {
     expect(await screen.findByText(t.bookings.empty)).toBeTruthy();
   });
 
-  it('is honest in demo mode', async () => {
+  it('in demo mode, asks to sign in first (demo accounts live in Account)', async () => {
     await setup('demo');
-    expect(screen.getByText(t.bookings.demo)).toBeTruthy();
+    expect(await screen.findByText(t.bookings.signInPrompt)).toBeTruthy();
   });
 });

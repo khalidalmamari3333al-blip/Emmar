@@ -1,5 +1,6 @@
 import type { Locale } from '@/i18n/types';
 import { AppConfig, isSupabaseConfigured, readConfig } from '@/lib/config';
+import { demoReply } from '@/demo/assistant';
 import { getSupabase } from '@/lib/supabase';
 import type { PropertySummary } from '@/types/property';
 
@@ -13,8 +14,7 @@ export interface ChatTurn {
 export type AssistantError = 'daily_limit' | 'busy' | 'sign_in' | 'not_configured' | 'error';
 
 export type AssistantResult =
-  | { status: 'ok'; reply: string; properties: PropertySummary[] }
-  | { status: 'demo' }
+  | { status: 'ok'; reply: string; properties: PropertySummary[]; demo?: boolean }
   | { status: AssistantError };
 
 /** الخادم يقبل حتى 20 رسالة تبدأ بالمستخدم؛ نرسل آخرها فقط. */
@@ -56,8 +56,8 @@ function supabaseTransport(): AssistantTransport | null {
 }
 
 export async function askAssistant(turns: ChatTurn[], locale: Locale, config: AppConfig = readConfig(), transport?: AssistantTransport | null): Promise<AssistantResult> {
-  // لا نتظاهر بوجود مساعد في الوضع التجريبي.
-  if (config.useMockData) return { status: 'demo' };
+  // وضع العرض: ردود بقواعد بسيطة (ليست ذكاءً اصطناعيًا) — والواجهة توضح ذلك.
+  if (config.useMockData) return { status: 'ok', demo: true, ...demoReply(trimHistory(turns), locale) };
   if (!transport && !isSupabaseConfigured(config)) return { status: 'not_configured' };
   const t = transport ?? supabaseTransport();
   if (!t) return { status: 'not_configured' };

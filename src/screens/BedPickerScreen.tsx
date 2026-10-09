@@ -254,13 +254,13 @@ function RequestAction({
       </View>
     );
   }
-  if (authStatus === 'demo' || authStatus === 'not_configured') {
+  if (authStatus === 'not_configured') {
     return (
       <>
         <View style={[styles.cta, styles.ctaDisabled]} accessibilityState={{ disabled: true }} accessibilityRole="button">
           <Text style={styles.ctaText}>{t.beds.sendRequest}</Text>
         </View>
-        <Text style={styles.ctaHint}>{authStatus === 'demo' ? t.beds.demoNoBooking : t.notConfigured}</Text>
+        <Text style={styles.ctaHint}>{t.notConfigured}</Text>
       </>
     );
   }

@@ -1,4 +1,4 @@
-import { mockProperties } from '@/data/mock/properties';
+import { demoProperties } from '@/demo/services';
 import { AppConfig, isSupabaseConfigured, readConfig } from '@/lib/config';
 import { getSupabase } from '@/lib/supabase';
 import type { City, PropertyDetail, PropertySummary, SearchFilters } from '@/types/property';
@@ -153,19 +153,19 @@ export async function run<T>(config: AppConfig, mock: () => T, live: () => Promi
 }
 
 export function getFeaturedProperties(city: City, config = readConfig(), live: LiveSource = liveSource) {
-  return run(config, () => mockProperties.filter((p) => p.city === city && p.featured), () => live.featured(city));
+  return run(config, () => demoProperties.featured(city), () => live.featured(city));
 }
 
 export function searchProperties(filters: SearchFilters, config = readConfig(), live: LiveSource = liveSource) {
   return run(
     config,
-    () => mockProperties.filter((p) => matchesFilters(p, filters)).sort((a, b) => Number(b.featured) - Number(a.featured)),
+    () => demoProperties.search((p) => matchesFilters(p, filters)),
     () => live.search(filters),
   );
 }
 
 export function getPropertyById(id: string, config = readConfig(), live: LiveSource = liveSource) {
-  return run(config, () => mockProperties.find((p) => p.id === id) ?? null, () => live.byId(id));
+  return run(config, () => demoProperties.byId(id), () => live.byId(id));
 }
 
 export function formatPrice(p: Pick<PropertySummary, 'priceOmr'>): string {

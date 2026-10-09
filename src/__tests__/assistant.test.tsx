@@ -4,6 +4,7 @@ import { dictionaries, LocaleProvider } from '@/i18n';
 import { AuthBackend, AuthProvider } from '@/lib/auth';
 import { AssistantScreen } from '@/screens/AssistantScreen';
 import { askAssistant, AssistantResult, AssistantTransport, ChatTurn, mapAssistantError, trimHistory } from '@/services/assistant';
+import { resetDemo } from '@/demo/store';
 import { fakeAuthBackend, STUDENT } from '@/test-utils/fakeAuth';
 
 const t = dictionaries.ar;
@@ -14,8 +15,11 @@ const row = {
 };
 
 describe('assistant service', () => {
-  it('never pretends in demo mode', async () => {
-    expect(await askAssistant([{ role: 'user', content: 'hi' }], 'ar', { useMockData: true })).toEqual({ status: 'demo' });
+  it('in demo mode answers from simple rules and says so', async () => {
+    resetDemo();
+    const r = await askAssistant([{ role: 'user', content: 'سرير في سكن طلابي بصحار بأقل من 60' }], 'ar', { useMockData: true });
+    expect(r.status === 'ok' && r.demo).toBe(true);
+    expect(r.status === 'ok' && r.properties.every((p) => p.kind === 'student' && p.city === 'sohar' && p.priceOmr <= 60)).toBe(true);
   });
 
   it('maps server replies and property rows', async () => {
@@ -91,8 +95,10 @@ describe('AssistantScreen', () => {
     expect(await screen.findByText(t.assistant.signInPrompt)).toBeTruthy();
   });
 
-  it('is honest in demo mode', async () => {
-    await wrap(async () => ({ status: 'error' }), 'demo');
-    expect(screen.getByText(t.assistant.demo)).toBeTruthy();
+  it('labels demo replies as rule-based, not AI', async () => {
+    await wrap(async () => ({ status: 'ok', reply: 'رد', properties: [], demo: true }));
+    await fireEvent.changeText(await screen.findByLabelText(t.assistant.placeholder), 'مرحبا');
+    await fireEvent.press(screen.getByTestId('assistant-send'));
+    expect(await screen.findByText(t.demo.assistantNote)).toBeTruthy();
   });
 });

@@ -58,7 +58,7 @@ export function NotificationsScreen({ backend, onNavigate = () => {}, onBack, on
       <ScreenHeader title={t.notifications.title} onBack={onBack} backLabel={t.detail.back} />
       {!signedIn ? (
         <View style={styles.center}>
-          <Notice text={auth.status === 'demo' ? t.auth.demoMode : t.notifications.signInPrompt} />
+          <Notice text={t.notifications.signInPrompt} />
           {auth.status === 'signed_out' && <Button label={t.bookings.signInCta} onPress={onSignIn} />}
         </View>
       ) : (

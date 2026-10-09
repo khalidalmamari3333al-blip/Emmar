@@ -16,6 +16,7 @@ import { FadeIn } from '@/components/motion';
 interface Message extends ChatTurn {
   id: number;
   properties?: PropertySummary[];
+  demo?: boolean;
 }
 
 export interface AssistantScreenProps {
@@ -46,12 +47,12 @@ export function AssistantScreen({ ask = (t, l) => askAssistant(t, l), onOpenProp
     const r = await ask(history.map(({ role, content: c }) => ({ role, content: c })), locale);
     setBusy(false);
     if (r.status === 'ok') {
-      setMessages((m) => [...m, { id: nextId.current++, role: 'assistant', content: r.reply, properties: r.properties }]);
+      setMessages((m) => [...m, { id: nextId.current++, role: 'assistant', content: r.reply, properties: r.properties, demo: r.demo }]);
     } else {
       // نعيد الرسالة لحقل الكتابة حتى يعيد المحاولة، ولا نتركها في السجل بلا رد
       setMessages((m) => m.filter((x) => x.id !== userMsg.id));
       setInput(content);
-      setError(r.status === 'demo' ? t.assistant.demo : t.assistant.errors[r.status]);
+      setError(t.assistant.errors[r.status]);
     }
     setTimeout(() => list.current?.scrollToEnd({ animated: true }), 50);
   };
@@ -66,12 +67,12 @@ export function AssistantScreen({ ask = (t, l) => askAssistant(t, l), onOpenProp
     </View>
   );
 
-  if (auth.status === 'demo' || auth.status === 'not_configured' || auth.status === 'signed_out') {
+  if (auth.status === 'not_configured' || auth.status === 'signed_out') {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
         {header}
         <View style={styles.center}>
-          <Notice text={auth.status === 'demo' ? t.assistant.demo : auth.status === 'not_configured' ? t.notConfigured : t.assistant.signInPrompt} />
+          <Notice text={auth.status === 'not_configured' ? t.notConfigured : t.assistant.signInPrompt} />
           {auth.status === 'signed_out' && <Button label={t.bookings.signInCta} onPress={onSignIn} />}
         </View>
       </SafeAreaView>
@@ -101,6 +102,7 @@ export function AssistantScreen({ ask = (t, l) => askAssistant(t, l), onOpenProp
             <FadeIn distance={10} style={{ gap: spacing.sm }}>
               <View style={[styles.bubble, item.role === 'user' ? styles.userBubble : styles.botBubble]} testID={`msg-${item.role}`}>
                 <Text style={[styles.bubbleText, item.role === 'user' && { color: colors.white }]}>{item.content}</Text>
+                {item.demo && <Text style={styles.demoNote}>{t.demo.assistantNote}</Text>}
               </View>
               {!!item.properties?.length && (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.md, paddingVertical: 4 }}>
@@ -157,6 +159,7 @@ const styles = StyleSheet.create({
   userBubble: { alignSelf: 'flex-end', backgroundColor: colors.primary, borderBottomRightRadius: 6 },
   botBubble: { alignSelf: 'flex-start', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderBottomLeftRadius: 6 },
   bubbleText: { fontFamily: fonts.body, fontSize: font.body, color: colors.text, lineHeight: 23 },
+  demoNote: { fontFamily: fonts.body, fontSize: 11, color: colors.textMuted, marginTop: 6 },
   thinking: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center' },
   thinkingText: { color: colors.textMuted, fontFamily: fonts.body, fontSize: font.small },
   composer: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, borderTopWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },

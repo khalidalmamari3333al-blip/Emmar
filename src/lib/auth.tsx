@@ -1,5 +1,7 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
+import { demoAuthBackend } from '@/demo/services';
+import type { DemoRole } from '@/demo/store';
 import { isSupabaseConfigured, readConfig } from '@/lib/config';
 import { getSupabase } from '@/lib/supabase';
 
@@ -37,7 +39,7 @@ export interface ProfilePatch {
   preferredLocale?: 'ar' | 'en';
 }
 
-export type AuthStatus = 'loading' | 'signed_in' | 'signed_out' | 'demo' | 'not_configured';
+export type AuthStatus = 'loading' | 'signed_in' | 'signed_out' | 'not_configured';
 
 interface AuthContextValue {
   status: AuthStatus;
@@ -48,6 +50,9 @@ interface AuthContextValue {
   updateProfile: (patch: ProfilePatch) => Promise<boolean>;
   /** يعيد قراءة الملف الشخصي (مثلًا بعد تغيير الدور) */
   refresh: () => Promise<void>;
+  /** وضع العرض التفاعلي: حسابات تجريبية محلية بلا كلمة مرور */
+  demo: boolean;
+  signInAs: (role: DemoRole) => Promise<void>;
 }
 
 const unavailable = async (): Promise<AuthResult> => ({ ok: false, code: 'unknown' });
@@ -59,6 +64,8 @@ const AuthContext = createContext<AuthContextValue>({
   signOut: async () => {},
   updateProfile: async () => false,
   refresh: async () => {},
+  demo: false,
+  signInAs: async () => {},
 });
 
 export function mapAuthError(e: { code?: string; status?: number; message?: string } | null | undefined): AuthErrorCode {
@@ -124,19 +131,22 @@ export function supabaseBackend(): AuthBackend | null {
 }
 
 export function AuthProvider({ children, backend }: { children: ReactNode; backend?: AuthBackend | 'demo' | null }) {
-  const resolved = useMemo<AuthBackend | 'demo' | null>(() => {
+  // 'demo' = حسابات العرض التفاعلي المحلية
+  const isDemo = backend === 'demo' || (backend === undefined && readConfig().useMockData);
+  const resolved = useMemo<AuthBackend | null>(() => {
+    if (backend === 'demo') return demoAuthBackend;
     if (backend !== undefined) return backend;
     const config = readConfig();
-    if (config.useMockData) return 'demo';
+    if (config.useMockData) return demoAuthBackend;
     return isSupabaseConfigured(config) ? supabaseBackend() : null;
   }, [backend]);
 
   const [state, setState] = useState<{ status: AuthStatus; user: AuthUser | null }>(() =>
-    resolved === 'demo' ? { status: 'demo', user: null } : resolved ? { status: 'loading', user: null } : { status: 'not_configured', user: null },
+    resolved ? { status: 'loading', user: null } : { status: 'not_configured', user: null },
   );
 
   useEffect(() => {
-    if (!resolved || resolved === 'demo') return;
+    if (!resolved) return;
     let active = true;
     const apply = (u: AuthUser | null) => active && setState({ status: u ? 'signed_in' : 'signed_out', user: u });
     resolved.current().then(apply).catch(() => apply(null));
@@ -147,7 +157,7 @@ export function AuthProvider({ children, backend }: { children: ReactNode; backe
     };
   }, [resolved]);
 
-  const real = resolved && resolved !== 'demo' ? resolved : null;
+  const real = resolved;
   const signIn = useCallback<AuthBackend['signIn']>((e, p) => (real ? real.signIn(e.trim(), p) : unavailable()), [real]);
   const signUp = useCallback<AuthBackend['signUp']>((n, e, p) => (real ? real.signUp(n.trim(), e.trim(), p) : unavailable()), [real]);
   const signOut = useCallback(async () => {
@@ -170,7 +180,14 @@ export function AuthProvider({ children, backend }: { children: ReactNode; backe
     [real, userId, refresh],
   );
 
-  const value = useMemo(() => ({ ...state, signIn, signUp, signOut, updateProfile, refresh }), [state, signIn, signUp, signOut, updateProfile, refresh]);
+  const signInAs = useCallback(async (role: DemoRole) => {
+    if (isDemo) await demoAuthBackend.signInAs(role);
+  }, [isDemo]);
+
+  const value = useMemo(
+    () => ({ ...state, signIn, signUp, signOut, updateProfile, refresh, demo: isDemo, signInAs }),
+    [state, signIn, signUp, signOut, updateProfile, refresh, isDemo, signInAs],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

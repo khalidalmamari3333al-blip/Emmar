@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import { dictionaries, LocaleProvider } from '@/i18n';
 import { AuthBackend, AuthProvider, isValidEmail, mapAuthError } from '@/lib/auth';
 import { ltr } from '@/lib/bidi';
+import { resetDemo } from '@/demo/store';
 import { AccountScreen } from '@/screens/AccountScreen';
 import { fakeAuthBackend, OWNER, STUDENT } from '@/test-utils/fakeAuth';
 
@@ -35,6 +36,7 @@ describe('auth helpers', () => {
 });
 
 describe('AccountScreen', () => {
+  beforeEach(() => resetDemo());
   it('validates input before contacting the server', async () => {
     const signIn = jest.fn();
     await renderAccount(fakeAuthBackend(null, { signIn }));
@@ -75,9 +77,13 @@ describe('AccountScreen', () => {
     expect(await screen.findByText(t.auth.signInTitle)).toBeTruthy();
   });
 
-  it('is honest in demo mode and when Supabase is missing', async () => {
+  it('offers one-tap demo accounts in demo mode, kept on this device', async () => {
     await renderAccount('demo');
-    expect(screen.getByText(t.auth.demoMode)).toBeTruthy();
+    expect(await screen.findByTestId('demo-accounts')).toBeTruthy();
+    expect(screen.getByText(t.demo.accountsHint)).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('demo-as-owner'));
+    expect(await screen.findByTestId('open-owner')).toBeTruthy();
+    expect(screen.getByText(t.demo.switchTitle)).toBeTruthy();
   });
 
   it('shows dashboard buttons by role and saves the phone number', async () => {

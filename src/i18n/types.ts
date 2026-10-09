@@ -15,6 +15,19 @@ export interface Strings {
   featuredTitle: string;
   how: { title: string; steps: { title: string; body: string }[]; owners: string };
   demoBanner: { title: string; body: string };
+  demo: {
+    accountsTitle: string;
+    accountsHint: string;
+    roles: Record<'user' | 'owner' | 'admin', { label: string; who: string }>;
+    switchTitle: string;
+    reset: string;
+    resetDone: string;
+    assistantNote: string;
+    noPush: string;
+    tourTitle: string;
+    tourHint: string;
+    tour: { title: string; body: string }[];
+  };
   emptyFeatured: string;
   notConfigured: string;
   loadError: string;

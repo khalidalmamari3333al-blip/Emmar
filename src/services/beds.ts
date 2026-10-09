@@ -1,4 +1,5 @@
 import { mockActiveBookings, mockLayouts } from '@/data/mock/layout';
+import { demoBeds } from '@/demo/services';
 import { readConfig } from '@/lib/config';
 import { ISODate, periodsOverlap } from '@/lib/dates';
 import { getSupabase } from '@/lib/supabase';
@@ -84,7 +85,7 @@ export const bedsLiveSource: BedsLiveSource = {
 };
 
 export function getBedLayout(propertyId: string, config = readConfig(), live: BedsLiveSource = bedsLiveSource): Promise<DataResult<BuildingLayout[]>> {
-  return run(config, () => mockLayouts[propertyId] ?? [], () => live.layout(propertyId));
+  return run(config, () => demoBeds.layout(propertyId), () => live.layout(propertyId));
 }
 
 export function getBedAvailability(
@@ -94,5 +95,5 @@ export function getBedAvailability(
   config = readConfig(),
   live: BedsLiveSource = bedsLiveSource,
 ): Promise<DataResult<Availability>> {
-  return run(config, () => mockAvailability(propertyId, start, end), () => live.availability(propertyId, start, end));
+  return run(config, () => demoBeds.availability(propertyId, start, end), () => live.availability(propertyId, start, end));
 }
