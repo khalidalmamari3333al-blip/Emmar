@@ -9,7 +9,9 @@
     },
     "types": [
       "jest"
-    ]
+    ],
+    "allowImportingTsExtensions": true,
+    "noEmit": true
   },
   "include": [
     "**/*.ts",
@@ -19,6 +21,7 @@
   ],
   "exclude": [
     "supabase/functions/**/index.ts",
+    "e2e/serve-payments.ts",
     "node_modules"
   ]
 }

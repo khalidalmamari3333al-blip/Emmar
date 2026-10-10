@@ -469,6 +469,56 @@ reset role;
 -- حتى المالك الأعلى لقاعدة البيانات لا يستطيع تعديل العقد المكتمل أو حذفه
 select pg_temp.expect_error($$update public.contracts set status = 'cancelled' where id = (select id from t_c)$$, '42501', 'a completed contract is frozen even for the database owner');
 select pg_temp.expect_error($$delete from public.contract_versions where contract_id = (select id from t_c)$$, '42501', 'contract versions can never be deleted');
-select pg_temp.check((select count(*) from public.audit_logs where entity = 'contract') = 4, 'contract steps are audited (created, revised, 2 signatures)');
+select pg_temp.check((select count(*) from public.audit_logs where action like 'contract.%') = 4, 'contract steps are audited (created, revised, 2 signatures)');
+
+-- ===== 15. المدفوعات (مزود تجريبي) =====
+\echo '--- payments'
+create temp table t_pay as select id, kind, seq, amount_omr from public.payments where contract_id = (select id from t_c);
+grant select on t_pay to authenticated, anon;
+select pg_temp.check((select count(*) filter (where kind = 'rent') = 4 and count(*) filter (where kind = 'deposit') = 1 from t_pay), 'completing the contract schedules 4 monthly rents and the deposit');
+select pg_temp.check((select amount_omr from t_pay where kind = 'deposit') = 60, 'deposit amount comes from the listing');
+select pg_temp.check(not exists (
+  select 1 from information_schema.columns where table_schema = 'public' and table_name like 'payment%'
+    and (column_name ~* 'card|pan|cvv|cvc|expiry|iban')), 'no card or bank data columns exist in payment tables');
+
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e1');
+select pg_temp.check((select count(*) from public.payments where contract_id = (select id from t_c)) = 5, 'tenant sees their schedule');
+select pg_temp.expect_error($$update public.payments set status = 'paid' where contract_id = (select id from t_c)$$, '42501', 'tenant cannot mark a payment paid');
+select pg_temp.expect_error($$insert into public.payment_transactions (payment_id, type, provider_ref, amount_omr, created_by) select id, 'charge', 'x', 1, auth.uid() from t_pay limit 1$$, '42501', 'clients cannot create transactions directly');
+select pg_temp.expect_error($$select public.record_payment_event('evt_forged_000', 'mock_pay', 'payment.succeeded', 'x', 1)$$, '42501', 'clients cannot submit provider events');
+select pg_temp.expect_error($$select * from public.create_payment_transaction((select id from t_pay limit 1), 'charge', auth.uid())$$, '42501', 'clients cannot start transactions without the payments function');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e3');
+select pg_temp.check((select count(*) from public.payments) = 0, 'third parties cannot see payments');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-00000000d001');
+select pg_temp.check((select count(*) from public.payments where contract_id = (select id from t_c)) = 5, 'landlord sees the schedule for their contract');
+reset role;
+
+-- ما تفعله دالة payments بمفتاح الخدمة
+select pg_temp.expect_error($$select * from public.create_payment_transaction((select id from t_pay where kind = 'deposit'), 'charge', '00000000-0000-4000-8000-00000000d001')$$, '42501', 'only the tenant can pay');
+create temp table t_tx as select * from public.create_payment_transaction((select id from t_pay where kind = 'deposit'), 'charge', '00000000-0000-4000-8000-0000000000e1');
+select pg_temp.check((select status from public.payments where id = (select id from t_pay where kind = 'deposit')) = 'processing', 'payment is processing until the provider confirms');
+select pg_temp.expect_error($$select * from public.create_payment_transaction((select id from t_pay where kind = 'deposit'), 'charge', '00000000-0000-4000-8000-0000000000e1')$$, '23514', 'a processing payment cannot be charged twice');
+select pg_temp.check(public.record_payment_event('evt_wrong_amount1', 'mock_pay', 'payment.succeeded', (select provider_ref from t_tx), 1) = 'amount_mismatch', 'an event with the wrong amount is rejected');
+select pg_temp.check((select status from public.payments where id = (select id from t_pay where kind = 'deposit')) = 'processing', 'still not paid after a bad event');
+select pg_temp.check(public.record_payment_event('evt_ok_000000001', 'mock_pay', 'payment.succeeded', (select provider_ref from t_tx), 60) = 'paid', 'a valid provider event marks the payment paid');
+select pg_temp.check((select receipt_no ~ '^AQ-[0-9]{4}-[0-9]{6}$' and paid_at is not null from public.payments where id = (select id from t_pay where kind = 'deposit')), 'a receipt number is issued');
+select pg_temp.check(public.record_payment_event('evt_ok_000000001', 'mock_pay', 'payment.succeeded', (select provider_ref from t_tx), 60) = 'duplicate', 'the same event is never applied twice');
+select pg_temp.check(public.record_payment_event('evt_ok_000000002', 'mock_pay', 'payment.succeeded', (select provider_ref from t_tx), 60) = 'already_final', 'a second success for a settled transaction is ignored');
+select pg_temp.check((select count(*) from public.payment_transactions where is_mock and provider = 'mock_pay') = 1, 'transactions are flagged as mock');
+
+-- فشل ثم إعادة المحاولة
+create temp table t_tx2 as select * from public.create_payment_transaction((select id from t_pay where kind = 'rent' and seq = 1), 'charge', '00000000-0000-4000-8000-0000000000e1');
+select pg_temp.check(public.record_payment_event('evt_fail_00000001', 'mock_pay', 'payment.failed', (select provider_ref from t_tx2), (select amount_omr from t_tx2), '{"reason":"insufficient_funds"}') = 'failed', 'a declined payment is marked failed');
+select pg_temp.check((select count(*) from public.create_payment_transaction((select id from t_pay where kind = 'rent' and seq = 1), 'charge', '00000000-0000-4000-8000-0000000000e1')) = 1, 'a failed payment can be retried');
+
+-- استرداد التأمين
+select pg_temp.expect_error($$select * from public.create_payment_transaction((select id from t_pay where kind = 'deposit'), 'refund', '00000000-0000-4000-8000-0000000000e1')$$, '42501', 'only the landlord refunds the deposit');
+select pg_temp.expect_error($$select * from public.create_payment_transaction((select id from t_pay where kind = 'rent' and seq = 2), 'refund', '00000000-0000-4000-8000-00000000d001')$$, '23514', 'only a paid deposit can be refunded');
+create temp table t_rf as select * from public.create_payment_transaction((select id from t_pay where kind = 'deposit'), 'refund', '00000000-0000-4000-8000-00000000d001');
+select pg_temp.check(public.record_payment_event('evt_refund_000001', 'mock_pay', 'refund.succeeded', (select provider_ref from t_rf), 60) = 'refunded', 'deposit refund completes after the provider confirms');
+select pg_temp.check((select status = 'refunded' and refunded_at is not null and receipt_no is not null from public.payments where id = (select id from t_pay where kind = 'deposit')), 'refunded deposit keeps its receipt');
+select pg_temp.check((select count(*) from public.audit_logs where entity = 'payment') >= 6, 'payment steps are audited');
 
 \echo 'ALL DATABASE TESTS PASSED'

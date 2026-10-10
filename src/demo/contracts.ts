@@ -6,6 +6,7 @@ import type { CResult } from '@/services/contracts';
 import { contractSha256, renderStudentContract } from '@/services/contractRender';
 import type { Contract, ContractStatus, ContractSummary } from '@/types/contract';
 
+import { scheduleFor, seedPaid } from './payments';
 import { audit, DEMO_USERS, demoState, findBed, newId, notifyChange } from './store';
 
 const me = () => demoState().currentUserId;
@@ -55,7 +56,28 @@ async function seed() {
   s.contractsSeeded = true;
   const b = s.bookings.find((x) => x.userId === DEMO_USERS.tenant && x.status === 'confirmed');
   if (b) await createFor(b.id, DEMO_USERS.owner);
+  // عقد مكتمل لمستأجر آخر بدفعتين مسددتين، حتى يظهر تقرير المالك بأرقام
+  const other = s.bookings.find((x) => x.userId === 'demo-other' && x.status === 'confirmed' && findBed(x.bedId));
+  if (other) {
+    const r = await createFor(other.id, DEMO_USERS.owner);
+    const c = r.ok ? s.contracts.find((x) => x.id === r.data) : undefined;
+    if (c) {
+      const v = c.versions[0];
+      const at = new Date(Date.now() - 20 * 864e5).toISOString();
+      c.signatures.push(
+        { versionNo: 1, signerId: c.tenantId, role: 'tenant', provider: 'mock_sign', isMock: true, signedSha256: v.sha256, signedAt: at },
+        { versionNo: 1, signerId: c.landlordId, role: 'landlord', provider: 'mock_sign', isMock: true, signedSha256: v.sha256, signedAt: at },
+      );
+      Object.assign(c, { status: 'completed', finalSha256: v.sha256, completedAt: at });
+      scheduleFor(c);
+      const dues = s.payments.filter((p) => p.contractId === c.id && (p.kind !== 'rent' || p.seq <= 2));
+      dues.forEach((p) => seedPaid(p.id));
+    }
+  }
 }
+
+/** للوصول من شاشات الدفع قبل فتح العقود */
+export const ensureDemoContracts = seed;
 
 export const demoContracts = {
   async list(): Promise<CResult<ContractSummary[]>> {
@@ -99,7 +121,10 @@ export const demoContracts = {
     if (sha256 !== v.sha256) return { ok: false, code: 'fingerprint_mismatch' };
     c.signatures.push({ versionNo: v.versionNo, signerId: me()!, role, provider: 'mock_sign', isMock: true, signedSha256: sha256, signedAt: now() });
     if (role === 'tenant') c.status = 'pending_landlord';
-    else Object.assign(c, { status: 'completed', finalSha256: v.sha256, completedAt: now() });
+    else {
+      Object.assign(c, { status: 'completed', finalSha256: v.sha256, completedAt: now() });
+      scheduleFor(c);
+    }
     audit('contract.signed', 'contract', id, { role, version: v.versionNo, sha256, provider: 'mock_sign' });
     notifyChange();
     return { ok: true, data: c.status };

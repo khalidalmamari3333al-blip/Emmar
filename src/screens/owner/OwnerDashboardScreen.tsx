@@ -18,6 +18,7 @@ export interface OwnerDashboardProps {
   onRequests?: () => void;
   onVerify?: (id: string) => void;
   onVerifyAccount?: () => void;
+  onPayments?: () => void;
   onBack?: () => void;
   refreshKey?: number;
 }
@@ -33,6 +34,7 @@ export function OwnerDashboardScreen({
   onRequests = () => {},
   onVerify = () => {},
   onVerifyAccount = () => {},
+  onPayments = () => {},
   onBack,
   refreshKey = 0,
 }: OwnerDashboardProps) {
@@ -78,6 +80,7 @@ export function OwnerDashboardScreen({
               testID="open-requests"
             />
           </View>
+          <Button label={t.payments.ownerTitle} onPress={onPayments} variant="secondary" testID="open-owner-payments" />
           <Button label={t.verification.verifyAccount} onPress={onVerifyAccount} variant="ghost" testID="verify-account" />
 
           <Text style={styles.h2}>{t.owner.myProperties}</Text>

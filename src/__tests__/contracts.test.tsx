@@ -43,7 +43,7 @@ describe('demo contracts follow the database rules', () => {
   it("seeds Salem's contract and runs tenant → landlord signing to a frozen final fingerprint", async () => {
     setCurrentUser(DEMO_USERS.tenant);
     const list = await demoContracts.list();
-    const summary = list.ok ? list.data[0] : undefined;
+    const summary = list.ok ? list.data.find((x) => x.tenantId === DEMO_USERS.tenant) : undefined;
     expect(summary).toMatchObject({ status: 'pending_tenant', tenantId: DEMO_USERS.tenant });
     const c = (await demoContracts.get(summary!.id)).ok ? ((await demoContracts.get(summary!.id)) as { data: Contract }).data : null;
     const sha = c!.versions[0].sha256;
@@ -65,7 +65,7 @@ describe('demo contracts follow the database rules', () => {
     const pending = demoState().bookings.find((b) => b.status === 'pending')!;
     expect(await demoContracts.create(pending.id)).toMatchObject({ ok: false, code: 'not_confirmed' });
     const list = await demoContracts.list();
-    const c = list.ok ? list.data[0] : undefined;
+    const c = list.ok ? list.data.find((x) => x.tenantId === DEMO_USERS.tenant) : undefined;
     expect(await demoContracts.create(c!.bookingId)).toMatchObject({ ok: false, code: 'already_exists' });
     expect(await demoContracts.revise(c!.id)).toMatchObject({ ok: false, code: 'unchanged' });
     const p = demoState().properties.find((x) => x.id === c!.propertyId)!;

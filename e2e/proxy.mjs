@@ -6,13 +6,14 @@ const routes = [
   ['/auth/v1', 'http://localhost:59999'],
   ['/rest/v1', 'http://localhost:53000'],
   ['/functions/v1/assistant', 'http://localhost:8000'],
+  ['/functions/v1/payments', 'http://localhost:8001'],
 ];
 
 http
   .createServer((req, res) => {
     // CORS كما تفعل بوابة Supabase، حتى يعمل تطبيق الويب من المتصفح.
     res.setHeader('Access-Control-Allow-Origin', req.headers.origin ?? '*');
-    res.setHeader('Access-Control-Allow-Headers', 'authorization, x-client-info, apikey, content-type, prefer, accept-profile, content-profile, x-supabase-api-version');
+    res.setHeader('Access-Control-Allow-Headers', 'authorization, x-client-info, apikey, content-type, prefer, accept-profile, content-profile, x-supabase-api-version, x-aqari-signature');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
     res.setHeader('Access-Control-Expose-Headers', 'content-range, x-total-count');
     if (req.method === 'OPTIONS') return res.writeHead(204).end();

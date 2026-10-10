@@ -32,6 +32,8 @@ import {
 } from '@/services/owner';
 import { supabaseNotifications } from '@/services/notifications';
 import { getPropertyById, searchProperties } from '@/services/properties';
+import { completeMockCheckout, landlordReport, listPayments, startCheckout } from '@/services/payments';
+import { signPayload } from '../supabase/functions/payments/signing';
 import { cancelContract, contractForBooking, createContract, getContract, reviseContract, signContract } from '@/services/contracts';
 import { decideRequest as decideVerification, getRequest, saveDeclared, sha256Hex, startRequest, submitRequest, verificationQueue } from '@/services/verification';
 
@@ -190,9 +192,53 @@ test('owner builds a student residence, a student books, the owner approves', as
   const tamper = await owner.client.from('contracts').update({ status: 'cancelled' }).eq('id', cid);
   expect(tamper.error).toBeTruthy();
 
-  // طرف ثالث لا يرى العقد
+  // المدفوعات: الجدول يُولَّد عند اكتمال العقد
+  mockCurrent = student.client;
+  const dues = await listPayments('tenant');
+  const rents = dues.ok ? dues.data.filter((p) => p.kind === 'rent') : [];
+  expect(rents.map((p) => [p.seq, p.dueDate, p.amountOmr, p.status])).toEqual([
+    [1, '2026-11-01', 45, 'pending'], [2, '2026-12-01', 45, 'pending'], [3, '2027-01-01', 45, 'pending'], [4, '2027-02-01', 45, 'pending'],
+  ]);
+  const session = await startCheckout(rents[0].id);
+  expect(session).toMatchObject({ ok: true, data: { amountOmr: 45, provider: 'mock_pay', mock: true } });
+  const ref = session.ok ? session.data.providerRef : '';
+
+  // حدث مزيّف بدون توقيع صحيح يُرفض ولا يغيّر شيئًا
+  const fake = JSON.stringify({ id: `evt_forged_${run}`, type: 'payment.succeeded', provider_ref: ref, amount_omr: 45 });
+  const forged = await fetch(`${URL}/functions/v1/payments`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-aqari-signature': `t=${Math.floor(Date.now() / 1000)},v1=${'0'.repeat(64)}` }, body: fake });
+  expect(forged.status).toBe(401);
+  const still = await listPayments('tenant');
+  expect(still.ok && still.data.find((p) => p.id === rents[0].id)!.status).toBe('processing');
+
+  // المالك لا يستطيع إتمام دفعة المستأجر
+  mockCurrent = owner.client;
+  expect(await completeMockCheckout(ref, 'succeeded')).toMatchObject({ ok: false, code: 'not_allowed' });
+  expect(await startCheckout(rents[1].id)).toMatchObject({ ok: false, code: 'not_allowed' });
+
+  mockCurrent = student.client;
+  expect(await completeMockCheckout(ref, 'succeeded')).toEqual({ ok: true, data: 'paid' });
+  const paid = await listPayments('tenant');
+  const p1 = paid.ok ? paid.data.find((p) => p.id === rents[0].id)! : null;
+  expect(p1).toMatchObject({ status: 'paid', providerRef: ref, isMock: true });
+  expect(p1!.receiptNo).toMatch(/^AQ-\d{4}-\d{6}$/);
+
+  // حدث موقّع حقيقي (كما يرسله المزود) يُطبّق مرة واحدة فقط
+  const s2 = await startCheckout(rents[1].id);
+  const evt = JSON.stringify({ id: `evt_signed_${run}`, type: 'payment.succeeded', provider_ref: s2.ok ? s2.data.providerRef : '', amount_omr: 45 });
+  const send = async () =>
+    (await fetch(`${URL}/functions/v1/payments`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-aqari-signature': await signPayload(process.env.E2E_PAYMENT_SECRET!, evt) }, body: evt })).json();
+  expect(await send()).toEqual({ outcome: 'paid' });
+  expect(await send()).toEqual({ outcome: 'duplicate' });
+
+  mockCurrent = owner.client;
+  const ledger = await listPayments('landlord');
+  expect(ledger.ok && landlordReport(ledger.data.filter((p) => p.contractId === cid), '2026-10-01')).toMatchObject({ collected: 90, outstanding: 90 });
+
+  // طرف ثالث لا يرى العقد ولا الدفعات
   await signUp('outsider');
   expect(await getContract(cid)).toEqual({ ok: true, data: null });
+  const peekPay = await listPayments('tenant');
+  expect(peekPay.ok && peekPay.data).toEqual([]);
 });
 
 test('admin promotes a user and features a listing; others cannot', async () => {

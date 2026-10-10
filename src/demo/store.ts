@@ -12,6 +12,7 @@ import type { BookingStatus } from '@/services/bookings';
 import type { NotificationData, NotificationKind } from '@/services/notifications';
 import type { BuildingLayout } from '@/types/layout';
 import type { Contract } from '@/types/contract';
+import type { Payment } from '@/types/payment';
 import type { ListingStatus, PropertyDetail } from '@/types/property';
 import type {
   AutomatedStatus,
@@ -131,6 +132,8 @@ interface State {
   verifications: DemoVerification[];
   landlords: DemoLandlord[];
   contracts: Contract[];
+  payments: Payment[];
+  paymentTx: { providerRef: string; paymentId: string; type: 'charge' | 'refund'; amountOmr: number; status: 'initiated' | 'succeeded' | 'failed'; createdBy: string }[];
   /** عقد سالم التجريبي يُنشأ عند أول وصول (البصمة تُحسب بشكل غير متزامن) */
   contractsSeeded: boolean;
   currentUserId: string | null;
@@ -178,7 +181,7 @@ function seed(now = Date.now()): State {
     monthlyPriceOmr: 50,
     createdAt: iso(now - 30 * 864e5),
   }));
-  const s: State = { users, properties, layouts, bookings, notifications: [], audit: [], verifications: [], landlords: [], contracts: [], contractsSeeded: false, currentUserId: null, seq: 1 };
+  const s: State = { users, properties, layouts, bookings, notifications: [], audit: [], verifications: [], landlords: [], contracts: [], payments: [], paymentTx: [], contractsSeeded: false, currentUserId: null, seq: 1 };
   state = s;
   // طلبان جديدان بانتظار المالك + حجز مؤكد للطالب، حتى لا تبدو اللوحات فارغة
   createBooking('demo-reem', { bedId: 'Y-103-b1', start: '2026-11-01', end: '2027-03-01' }, now - 3 * 3600e3);
