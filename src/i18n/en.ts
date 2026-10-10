@@ -483,7 +483,7 @@ export const en: Strings = {
   assistant: {
     title: 'Smart assistant',
     intro: "Tell me your budget, city and what you're looking for, and I'll search the listings that are actually available.",
-    suggestions: ['A student bed in Sohar under 50 OMR', '2-bedroom flat for rent in Muscat', 'Villa for sale in Al Azaiba'],
+    suggestions: ['A student bed in Sohar under 50 OMR', 'Housing near Sohar University with Wi-Fi', 'First payment for a furnished flat in Muscat?', 'Compare two student residences in Sohar'],
     placeholder: 'Describe what you need…',
     send: 'Send',
     thinking: 'Searching listings…',

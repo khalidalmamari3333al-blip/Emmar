@@ -19,7 +19,19 @@ http
       const last = body.messages.at(-1);
       const result = Array.isArray(last.content) ? last.content.find((b) => b.type === 'tool_result') : null;
       let out;
+      const first = JSON.stringify(body.messages[0].content);
       if (/refuse-me/.test(JSON.stringify(last.content))) out = reply([], 'refusal');
+      // سيناريو التفاصيل والمقارنة: بحث ← تفاصيل + مقارنة ← رد
+      else if (/details-please/.test(first)) {
+        if (!result) out = reply([{ type: 'tool_use', id: 'td_1', name: 'search_properties', input: { query: first.match(/q=(\w+)/)[1], amenities: ['wifi'], near: 'sohar_university' } }], 'tool_use');
+        else if (result.tool_use_id === 'td_1') {
+          const rows = JSON.parse(result.content);
+          out = reply([
+            { type: 'tool_use', id: 'td_2', name: 'get_property_details', input: { property_id: rows[0].id } },
+            { type: 'tool_use', id: 'td_3', name: 'compare_properties', input: { property_ids: rows.map((r) => r.id).concat('00000000-dead-beef-0000-000000000000') } },
+          ], 'tool_use');
+        } else out = reply([{ type: 'text', text: 'details done' }], 'end_turn');
+      }
       else if (!result) out = reply([{ type: 'tool_use', id: 'tu_1', name: 'search_properties', input: { city: 'sohar', kind: 'student', max_price: 60 } }], 'tool_use');
       else if (result.tool_use_id === 'tu_1') {
         const rows = JSON.parse(result.content);

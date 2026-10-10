@@ -3,10 +3,11 @@
  * ويبحث في عقارات العرض. ليس ذكاءً اصطناعيًا — والواجهة تقول ذلك صراحةً.
  */
 import type { Locale } from '@/i18n/types';
-import { matchesFilters } from '@/services/properties';
-import type { PropertySummary, SearchFilters } from '@/types/property';
+import { firstPayment, matchesFilters } from '@/services/properties';
+import type { Amenity, PropertySummary, SearchFilters } from '@/types/property';
 
 import { demoProperties } from './services';
+import { demoState } from './store';
 
 const toWestern = (s: string) => s.replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
 
@@ -16,6 +17,24 @@ export function parseNeeds(text: string): SearchFilters {
   const f: SearchFilters = {};
   if (/صحار|sohar/.test(t)) f.city = 'sohar';
   else if (/مسقط|muscat|الخوض|القرم|الموج|بوشر|العذيبة/.test(t)) f.city = 'muscat';
+
+  // القرب من الجامعات (قبل كشف "جامعة" كسكن طلابي)
+  if (/جامعة السلطان قابوس|squ|sultan qaboos/.test(t)) f.landmark = 'squ';
+  else if (/جامعة صحار|sohar university/.test(t)) f.landmark = 'sohar_university';
+  else if (/التقنية.*صحار|utas.*sohar/.test(t)) f.landmark = 'utas_sohar';
+  else if (/التقنية|utas/.test(t)) f.landmark = 'utas_muscat';
+  else if (/جامعة مسقط|muscat university/.test(t)) f.landmark = 'muscat_university';
+  else if (/البحر|الشاطئ|beach|sea/.test(t)) f.landmark = 'beach';
+
+  const amenities: Amenity[] = [];
+  if (/واي ?فاي|wi-?fi|انترنت|إنترنت|internet/.test(t)) amenities.push('wifi');
+  if (/موقف|parking/.test(t)) amenities.push('parking');
+  if (/جيم|نادي رياضي|gym/.test(t)) amenities.push('gym');
+  if (/مسبح|pool/.test(t)) amenities.push('pool');
+  if (/غرفة مذاكرة|study room/.test(t)) amenities.push('study_room');
+  if (amenities.length) f.amenities = amenities;
+  if (/غير مفروش|unfurnished/.test(t)) delete f.furnishedOnly;
+  else if (/مفروش|مفروشة|furnished/.test(t)) f.furnishedOnly = true;
 
   // \b حتى لا تُفهم "bedroom" على أنها سرير طلابي
   if (/سرير|طلاب|طالب|سكن طلابي|جامعة/.test(t) || /\b(students?|beds?|dorms?)\b/.test(t)) f.kind = 'student';
@@ -59,6 +78,32 @@ export function demoReply(turns: { role: string; content: string }[], locale: Lo
       properties: [],
     };
   const where = cityName ? (ar ? ` في ${cityName}` : ` in ${cityName}`) : '';
+  // تفاصيل حقيقية من بيانات العرض: أول دفعة متوقعة، التوثيق، التقييم
+  const top = demoProperties.byId(results[0].id);
+  const pay = top ? firstPayment(top) : undefined;
+  const reviews = demoState().reviews.filter((r) => r.propertyId === results[0].id);
+  const avg = reviews.length ? Math.round((reviews.reduce((x, r) => x + r.rating, 0) / reviews.length) * 10) / 10 : null;
+  const title = top ? (ar ? top.title.ar : top.title.en) : '';
+  const facts = [
+    pay ? (ar ? `أول دفعة متوقعة في «${title}» ${pay} ر.ع (إيجار شهر + التأمين + الرسوم)` : `the expected first payment at "${title}" is ${pay} OMR (one month + deposit + fees)`) : null,
+    top?.verificationStatus === 'verified' ? (ar ? 'وهو موثّق من فريق التحقق' : 'it is verified by the verification team') : null,
+    avg != null ? (ar ? `وتقييمه ${avg} من 5` : `rated ${avg}/5`) : null,
+  ].filter(Boolean);
+  const sentence = facts.join(ar ? '، ' : ', ');
+  const factLine = sentence ? ` ${ar ? sentence : sentence[0].toUpperCase() + sentence.slice(1)}.` : '';
+  const wantsCompare = turns.some((x) => x.role === 'user' && /قارن|مقارنة|compare/.test(x.content.toLowerCase()));
+  const compareLine =
+    wantsCompare && results.length >= 2
+      ? (() => {
+          const [a, b] = results.slice(0, 2).map((r) => demoProperties.byId(r.id)!);
+          const pa = firstPayment(a) ?? a.priceOmr;
+          const pb = firstPayment(b) ?? b.priceOmr;
+          const cheaper = pa <= pb ? a : b;
+          return ar
+            ? ` للمقارنة: «${a.title.ar}» ${pa} ر.ع مقابل «${b.title.ar}» ${pb} ر.ع كأول دفعة — الأوفر «${cheaper.title.ar}».`
+            : ` Compared: "${a.title.en}" ${pa} OMR vs "${b.title.en}" ${pb} OMR as first payment — "${cheaper.title.en}" costs less upfront.`;
+        })()
+      : '';
   const extra =
     needs.kind === 'student'
       ? ar
@@ -67,8 +112,8 @@ export function demoReply(turns: { role: string; content: string }[], locale: Lo
       : '';
   return {
     reply: ar
-      ? `وجدت لك ${results.length === 1 ? 'عقارًا واحدًا' : results.length === 2 ? 'عقارين' : `${results.length} عقارات`}${where}${budget}.${extra}`
-      : `I found ${results.length} listing${results.length > 1 ? 's' : ''}${where}${budget}.${extra}`,
+      ? `وجدت لك ${results.length === 1 ? 'عقارًا واحدًا' : results.length === 2 ? 'عقارين' : `${results.length} عقارات`}${where}${budget}.${factLine}${compareLine}${extra}`
+      : `I found ${results.length} listing${results.length > 1 ? 's' : ''}${where}${budget}.${factLine}${compareLine}${extra}`,
     properties: results,
   };
 }

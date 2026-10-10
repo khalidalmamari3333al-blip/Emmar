@@ -116,3 +116,21 @@ describe('demo gallery and audit log', () => {
     expect(demoAdmin.auditLog()).toMatchObject({ ok: false, code: 'not_allowed' });
   });
 });
+
+describe('demo assistant understands amenities, proximity and costs', () => {
+  it('parses universities, amenities and furnishing without confusing "university" for its own sake', () => {
+    expect(parseNeeds('سكن قريب من جامعة صحار فيه واي فاي وغرفة مذاكرة')).toMatchObject({ landmark: 'sohar_university', amenities: ['wifi', 'study_room'], kind: 'student' });
+    expect(parseNeeds('furnished studio near SQU with parking')).toMatchObject({ landmark: 'squ', amenities: ['parking'], furnishedOnly: true, type: 'studio' });
+    expect(parseNeeds('شقة غير مفروشة').furnishedOnly).toBeUndefined();
+  });
+
+  it('quotes the real first payment, verification and rating, and compares when asked', () => {
+    const r = demoReply([{ role: 'user', content: 'قارن سكن طلابي في صحار قريب من جامعة صحار' }], 'ar');
+    expect(r.properties.length).toBeGreaterThanOrEqual(2);
+    expect(r.reply).toMatch(/أول دفعة متوقعة/);
+    expect(r.reply).toMatch(/موثّق/);
+    expect(r.reply).toMatch(/للمقارنة/);
+    const en = demoReply([{ role: 'user', content: 'student bed in Sohar near Sohar University' }], 'en');
+    expect(en.reply).toMatch(/The expected first payment/);
+  });
+});
