@@ -22,6 +22,7 @@ import {
   getOwnerStats,
   listMyProperties,
   listImages,
+  setPropertyStatus,
   listOwnerRequests,
   removeImage,
   reorderImages,
@@ -31,6 +32,7 @@ import {
 } from '@/services/owner';
 import { supabaseNotifications } from '@/services/notifications';
 import { getPropertyById, searchProperties } from '@/services/properties';
+import { decideRequest as decideVerification, getRequest, saveDeclared, sha256Hex, startRequest, submitRequest, verificationQueue } from '@/services/verification';
 
 const URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const ANON = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
@@ -41,7 +43,7 @@ const run = `d${Date.now().toString(36)}`;
 let mockCurrent: SupabaseClient;
 jest.mock('@/lib/supabase', () => ({ getSupabase: () => mockCurrent }));
 
-async function signUp(name: string, role?: 'owner' | 'admin') {
+async function signUp(name: string, role?: 'owner' | 'admin' | 'verifier') {
   mockCurrent = createClient(URL, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
   const backend = supabaseBackend()!;
   await backend.signUp(name, `${name}-${run}@example.com`, 'password-123');
@@ -51,6 +53,29 @@ async function signUp(name: string, role?: 'owner' | 'admin') {
     user = (await backend.current())!;
   }
   return { client: mockCurrent, user, backend };
+}
+
+let officers = 0;
+/** يمرّر العقار عبر التوثيق الحقيقي: طلب ← مستند ← فحوص الخادم ← موافقة موظف تحقق. */
+async function verifyListing(owner: Awaited<ReturnType<typeof signUp>>, pid: string, city: 'sohar' | 'muscat') {
+  mockCurrent = owner.client;
+  const started = await startRequest('property', pid);
+  expect(started.ok).toBe(true);
+  const rid = started.ok ? started.data : '';
+  expect((await saveDeclared(rid, { deedNumber: `E2E-${run}-${officers}`, declaredOwnerName: owner.user.fullName, declaredCity: city })).ok).toBe(true);
+  // خدمة Storage غير مشغلة محليًا: نسجّل صف المستند مباشرة (سياسات الجدول نفسها تُطبَّق)
+  const sha = await sha256Hex(new TextEncoder().encode(`${run}-${officers}`).buffer as ArrayBuffer);
+  await owner.client.from('verification_documents')
+    .insert({ request_id: rid, doc_type: 'title_deed', path: `${owner.user.id}/${rid}/deed.pdf`, mime_type: 'application/pdf', size_bytes: 1000, sha256: sha })
+    .throwOnError();
+  expect(await submitRequest(rid)).toEqual({ ok: true, data: 'passed' });
+  officers += 1;
+  await signUp(`officer${officers}`, 'verifier');
+  const q = await verificationQueue('submitted');
+  expect(q.ok && q.data.some((x) => x.id === rid)).toBe(true);
+  expect((await decideVerification(rid, 'approved')).ok).toBe(true);
+  mockCurrent = owner.client;
+  return rid;
 }
 
 test('owner builds a student residence, a student books, the owner approves', async () => {
@@ -86,6 +111,9 @@ test('owner builds a student residence, a student books, the owner approves', as
   const maintBed = rooms[2].beds[1].id;
   expect((await updateBed(maintBed, { status: 'maintenance' })).ok).toBe(true);
 
+  // النشر ممنوع قبل التوثيق — يفرضه الخادم
+  expect(await updateProperty(pid, { ...input, status: 'published' })).toMatchObject({ ok: false, code: 'needs_verification' });
+  await verifyListing(owner, pid, 'sohar');
   expect((await updateProperty(pid, { ...input, status: 'published' })).ok).toBe(true);
   const mine = await listMyProperties(owner.user.id);
   expect(mine.ok && mine.data[0]).toMatchObject({ id: pid, status: 'published' });
@@ -147,9 +175,11 @@ test('admin promotes a user and features a listing; others cannot', async () => 
   expect((await user.backend.current())!.role).toBe('owner');
   const p = await createProperty(user.user.id, {
     ...emptyPropertyInput(), titleAr: `فيلا ${run}`, titleEn: `Villa ${run}`, districtAr: 'العذيبة', districtEn: 'Al Azaiba',
-    kind: 'sale', type: 'villa', city: 'muscat', price: '185000', status: 'published',
+    kind: 'sale', type: 'villa', city: 'muscat', price: '185000', status: 'draft',
   });
   expect(p.ok).toBe(true);
+  await verifyListing(user, p.ok ? p.data : '', 'muscat');
+  expect((await setPropertyStatus(p.ok ? p.data : '', 'published')).ok).toBe(true);
 
   mockCurrent = boss.client;
   expect((await adminSetFeatured(p.ok ? p.data : '', true)).ok).toBe(true);
@@ -162,12 +192,14 @@ test('amenities, costs, multiple images and the audit log work end to end', asyn
   const owner = await signUp('landlord', 'owner');
   const created = await createProperty(owner.user.id, {
     ...emptyPropertyInput(), kind: 'rent', type: 'house', city: 'muscat', titleAr: `بيت ${run}`, titleEn: `House ${run}`,
-    districtAr: 'الخوض', districtEn: 'Al Khoudh', price: '300', status: 'published',
+    districtAr: 'الخوض', districtEn: 'Al Khoudh', price: '300', status: 'draft',
     furnished: 'furnished', amenities: ['wifi', 'parking'], utilities: ['water'], landmarks: ['squ'], deposit: '300', fees: '20',
     rulesAr: 'ممنوع التدخين', rulesEn: 'No smoking', cancellationPolicy: 'strict',
   });
   expect(created.ok).toBe(true);
   const id = created.ok ? created.data : '';
+  await verifyListing(owner, id, 'muscat');
+  expect((await setPropertyStatus(id, 'published')).ok).toBe(true);
 
   // صور: المالك يسجّل صورتين (Storage غير مشغّل هنا؛ نختبر جدول property_images وقواعده)
   const rows = await owner.client
@@ -207,4 +239,54 @@ test('amenities, costs, multiple images and the audit log work end to end', asyn
   await signUp('auditor', 'admin');
   const log = await adminAuditLog('property');
   expect(log.ok && log.data.some((e) => e.action === 'property.created' && e.entityId === id && e.actorName === 'landlord')).toBe(true);
+});
+
+test('verification rejects a copied deed, keeps documents private, and shows the badge only when approved', async () => {
+  const real = await signUp('realowner', 'owner');
+  const mk = async (who: typeof real, title: string) => {
+    mockCurrent = who.client;
+    const r = await createProperty(who.user.id, {
+      ...emptyPropertyInput(), kind: 'rent', type: 'apartment', city: 'sohar', titleAr: `${title} ${run}`, titleEn: `${title} ${run}`,
+      districtAr: 'الطريف', districtEn: 'Al Tareef', price: '200', status: 'draft',
+    });
+    return r.ok ? r.data : '';
+  };
+  const pid = await mk(real, 'أصلي');
+  await verifyListing(real, pid, 'sohar');
+  const deed = `E2E-${run}-0`.toUpperCase();
+
+  // محتال يستخدم السند نفسه
+  const fraud = await signUp('fraudster', 'owner');
+  const fpid = await mk(fraud, 'منسوخ');
+  const started = await startRequest('property', fpid);
+  const rid = started.ok ? started.data : '';
+  await saveDeclared(rid, { deedNumber: deed, declaredOwnerName: 'realowner', declaredCity: 'sohar' });
+  await fraud.client.from('verification_documents')
+    .insert({ request_id: rid, doc_type: 'title_deed', path: `${fraud.user.id}/${rid}/deed.pdf`, mime_type: 'application/pdf', size_bytes: 1000, sha256: await sha256Hex(new TextEncoder().encode(`fraud-${run}`).buffer as ArrayBuffer) })
+    .throwOnError();
+  expect(await submitRequest(rid)).toEqual({ ok: true, data: 'failed' });
+  const mine = await getRequest(rid);
+  expect(mine.ok && mine.data?.checks.filter((c) => c.result === 'fail').map((c) => c.code)).toEqual(['name_match', 'duplicate_deed', 'official_registry']);
+  expect(mine.ok && mine.data?.checks.find((c) => c.code === 'official_registry')).toMatchObject({ isMock: true });
+
+  // مستندات المؤجر الأصلي غير مرئية للمحتال
+  const peek = await fraud.client.from('verification_documents').select('id').neq('request_id', rid);
+  expect(peek.data).toEqual([]);
+
+  await signUp('officerx', 'verifier');
+  expect(await decideVerification(rid, 'approved', 'ok')).toMatchObject({ ok: false, code: 'checks_failed' });
+  expect((await decideVerification(rid, 'rejected', 'سند مستخدم')).ok).toBe(true);
+
+  mockCurrent = real.client;
+  expect((await setPropertyStatus(pid, 'published')).ok).toBe(true);
+  mockCurrent = createClient(URL, ANON, { auth: { persistSession: false } });
+  const s = await searchProperties({ query: run, kind: 'rent' }, LIVE);
+  const card = s.status === 'ok' ? s.data.find((x) => x.id === pid) : undefined;
+  expect(card).toMatchObject({ verificationStatus: 'verified', verifiedScope: 'documents_reviewed' });
+  expect(s.status === 'ok' && s.data.some((x) => x.id === fpid)).toBe(false);
+});
+
+test('document fingerprints are real SHA-256', async () => {
+  const bytes = new TextEncoder().encode('abc');
+  expect(await sha256Hex(bytes.buffer as ArrayBuffer)).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
 });

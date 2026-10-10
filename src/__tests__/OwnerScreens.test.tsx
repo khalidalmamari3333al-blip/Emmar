@@ -21,7 +21,7 @@ const wrap = (ui: ReactElement, auth: AuthBackend = fakeAuthBackend(OWNER)) =>
   );
 
 const prop: OwnerProperty = {
-  id: 'p1', title: { ar: 'سكن الطالبات', en: 'Girls housing' }, city: 'sohar', kind: 'student', status: 'draft', featured: false, updatedAt: '',
+  id: 'p1', title: { ar: 'سكن الطالبات', en: 'Girls housing' }, city: 'sohar', kind: 'student', status: 'draft', featured: false, updatedAt: '', verificationStatus: 'verified',
   input: { ...emptyPropertyInput(), kind: 'student', type: 'student_housing', titleAr: 'سكن الطالبات', titleEn: 'Girls housing', districtAr: 'الهمبار', districtEn: 'Al Humbar', price: '45' },
 };
 

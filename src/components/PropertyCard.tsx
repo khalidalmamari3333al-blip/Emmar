@@ -3,6 +3,7 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 import { PressableScale } from '@/components/motion';
 
 import { PropertyIllustration } from '@/components/omani/PropertyIllustration';
+import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { pick, useLocale } from '@/i18n';
 import { formatPrice } from '@/services/properties';
 import { colors, font, fonts, radius, shadow, spacing } from '@/theme';
@@ -32,6 +33,7 @@ export function PropertyCard({ item, onPress, wide = false }: { item: PropertySu
         </View>
       </View>
       <View style={styles.body}>
+        <VerifiedBadge item={item} />
         <Text style={styles.title} numberOfLines={1}>{pick(item.title, locale)}</Text>
         <Text style={styles.meta}>{t.cities[item.city]} · {pick(item.district, locale)}</Text>
         <Text style={styles.price}>

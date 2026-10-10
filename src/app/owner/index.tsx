@@ -13,6 +13,8 @@ export default function OwnerRoute() {
       onAdd={() => router.push('/owner/property/new')}
       onEdit={(id) => router.push(`/owner/property/${id}`)}
       onRequests={() => router.push('/owner/requests')}
+      onVerify={(id) => router.push(`/owner/verify/${id}`)}
+      onVerifyAccount={() => router.push('/owner/verify/account')}
     />
   );
 }

@@ -51,6 +51,7 @@ export interface PropertyEditorProps {
   structure?: Omit<StructureEditorProps, 'propertyId'>;
   onCreated?: (id: string) => void;
   onPreview?: (id: string) => void;
+  onVerify?: (id: string) => void;
   onBack?: () => void;
 }
 
@@ -65,6 +66,7 @@ export function PropertyEditorScreen({
   structure,
   onCreated = () => {},
   onPreview,
+  onVerify,
   onBack,
 }: PropertyEditorProps) {
   const { t } = useLocale();
@@ -77,6 +79,7 @@ export function PropertyEditorScreen({
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState<{ text: string; tone: 'error' | 'success' } | null>(null);
+  const [needsVerification, setNeedsVerification] = useState(false);
 
   useEffect(() => {
     if (!propertyId) return;
@@ -113,6 +116,8 @@ export function PropertyEditorScreen({
     setSaving(true);
     const r = propertyId ? await update(propertyId, input) : await create(auth.user.id, input);
     setSaving(false);
+    setNeedsVerification(!r.ok && r.code === 'needs_verification');
+    if (!r.ok && r.code === 'needs_verification') return setMessage({ text: t.verification.publishBlocked, tone: 'error' });
     if (!r.ok) return setMessage({ text: r.code === 'not_allowed' ? t.owner.notAllowed : r.code === 'not_configured' ? t.notConfigured : t.owner.saveFailed, tone: 'error' });
     setMessage({ text: t.owner.saved, tone: 'success' });
     if (!propertyId && typeof r.data === 'string') onCreated(r.data);
@@ -237,6 +242,7 @@ export function PropertyEditorScreen({
             </Section>
 
             {message && <Notice text={message.text} tone={message.tone} />}
+            {needsVerification && propertyId && onVerify && <Button label={t.verification.verifyCta} onPress={() => onVerify(propertyId)} variant="secondary" testID="go-verify" />}
             <Button label={saving ? t.owner.saving : propertyId ? t.owner.save : t.owner.create} onPress={save} busy={saving} testID="save-property" />
             {propertyId && onPreview && input.status === 'published' && <Button label={t.owner.preview} onPress={() => onPreview(propertyId)} variant="ghost" />}
 

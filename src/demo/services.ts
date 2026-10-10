@@ -56,7 +56,7 @@ export const demoAuthBackend: AuthBackend & { signInAs(role: DemoRole): Promise<
     return true;
   },
   async signInAs(role) {
-    setCurrentUser(role === 'owner' ? DEMO_USERS.owner : role === 'admin' ? DEMO_USERS.admin : DEMO_USERS.tenant);
+    setCurrentUser(DEMO_USERS[role === 'user' ? 'tenant' : role]);
   },
 };
 
@@ -168,6 +168,7 @@ function toOwnerProperty(p: DemoProperty): OwnerProperty {
     featured: p.featured,
     imageUrl: p.imageUrl,
     updatedAt: p.updatedAt,
+    verificationStatus: p.verificationStatus ?? 'unverified',
     input: {
       kind: p.kind, type: p.type, city: p.city, districtAr: p.district.ar, districtEn: p.district.en, titleAr: p.title.ar, titleEn: p.title.en,
       descriptionAr: p.description.ar, descriptionEn: p.description.en, price: String(p.priceOmr), bedrooms: p.bedrooms == null ? '' : String(p.bedrooms),
@@ -219,17 +220,38 @@ function applyInput(p: Partial<DemoProperty>, i: PropertyInput, toNum: (s: strin
   });
 }
 
+/** يحاكي properties_verification_guard: النشر بعد التوثيق، وإسقاط التوثيق عند تعديل جوهري. */
+const SUBSTANTIVE = (p: Partial<DemoProperty>) => JSON.stringify([p.kind, p.type, p.city, p.district, p.areaSqm, p.bedrooms]);
+function guardedApply(p: DemoProperty, input: PropertyInput, toNum: (s: string) => number | undefined, isNew: boolean): Result {
+  const before = isNew ? undefined : SUBSTANTIVE(p);
+  const wasPublished = !isNew && p.status === 'published';
+  const draft = { ...p };
+  applyInput(draft, input, toNum);
+  if (isNew) draft.verificationStatus = 'unverified';
+  else if (p.verificationStatus === 'verified' && SUBSTANTIVE(draft) !== before) {
+    Object.assign(draft, { verificationStatus: 'unverified', verifiedAt: undefined, verifiedScope: undefined });
+    if (draft.status === 'published') draft.status = 'draft';
+    audit('property.reverification', 'property', p.id, {});
+  }
+  if (draft.status === 'published' && !wasPublished && draft.verificationStatus !== 'verified') return { ok: false, code: 'needs_verification' };
+  Object.assign(p, draft);
+  return ok(undefined);
+}
+
 export const demoOwner = {
   listMine: (ownerId: string) => ok(demoState().properties.filter((p) => p.ownerId === ownerId).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map(toOwnerProperty)),
   listAll: (status?: ListingStatus) => ok(demoState().properties.filter((p) => !status || p.status === status).map(toOwnerProperty)),
   get: (id: string) => {
     const p = demoState().properties.find((x) => x.id === id);
-    return ok(p && canManage(p) ? toOwnerProperty(p) : null);
+    // فريق التحقق يقرأ العقار قيد المراجعة (مثل properties_staff_select) دون صلاحية تعديله
+    const staff = ['admin', 'verifier'].includes(demoState().users.find((u) => u.id === me())?.role ?? '');
+    return ok(p && (canManage(p) || staff) ? toOwnerProperty(p) : null);
   },
   create(ownerId: string, input: PropertyInput, toNum: (s: string) => number | undefined): Result<string> {
     const id = newId('demo-p');
     const p = { id, ownerId, featured: false } as DemoProperty;
-    applyInput(p, input, toNum);
+    const r = guardedApply(p, input, toNum, true);
+    if (!r.ok) return r;
     demoState().properties.unshift(p);
     demoState().layouts[id] = [];
     audit('property.created', 'property', id, { status: p.status });
@@ -239,13 +261,14 @@ export const demoOwner = {
   update(id: string, input: PropertyInput, toNum: (s: string) => number | undefined): Result {
     const p = demoState().properties.find((x) => x.id === id);
     if (!p || !canManage(p)) return { ok: false, code: 'not_allowed' };
-    applyInput(p, input, toNum);
+    const r = guardedApply(p, input, toNum, false);
     notifyChange();
-    return ok(undefined);
+    return r;
   },
   setStatus(id: string, status: ListingStatus): Result {
     const p = demoState().properties.find((x) => x.id === id);
     if (!p || !canManage(p)) return { ok: false, code: 'not_allowed' };
+    if (status === 'published' && p.status !== 'published' && p.verificationStatus !== 'verified') return { ok: false, code: 'needs_verification' };
     if (p.status !== status) audit('property.status', 'property', id, { from: p.status, to: status });
     p.status = status;
     notifyChange();

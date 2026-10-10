@@ -6,7 +6,7 @@ import { AuthForm } from '@/components/AuthForm';
 import { CrenellationDivider } from '@/components/omani/CrenellationDivider';
 import { Button, Field, Notice } from '@/components/ui';
 import { Locale, useLocale } from '@/i18n';
-import { isAdminRole, isOwnerRole, useAuth } from '@/lib/auth';
+import { isAdminRole, isOwnerRole, isStaffRole, useAuth } from '@/lib/auth';
 import { resetDemo } from '@/demo/store';
 import { ltr } from '@/lib/bidi';
 import { enablePush, PushStatus, unregisterDevice } from '@/lib/push';
@@ -14,7 +14,11 @@ import { colors, font, fonts, radius, spacing } from '@/theme';
 
 const LOCALES: Locale[] = ['ar', 'en'];
 
-export function AccountScreen({ onOpenOwner = () => {}, onOpenAdmin = () => {} }: { onOpenOwner?: () => void; onOpenAdmin?: () => void } = {}) {
+export function AccountScreen({
+  onOpenOwner = () => {},
+  onOpenAdmin = () => {},
+  onOpenVerify = () => {},
+}: { onOpenOwner?: () => void; onOpenAdmin?: () => void; onOpenVerify?: () => void } = {}) {
   const { t, locale, setLocale } = useLocale();
   const auth = useAuth();
   return (
@@ -35,6 +39,7 @@ export function AccountScreen({ onOpenOwner = () => {}, onOpenAdmin = () => {} }
       {auth.status === 'signed_in' && auth.user && (
         <>
           {isOwnerRole(auth.user) && <Button label={t.owner.openDashboard} onPress={onOpenOwner} testID="open-owner" />}
+          {isStaffRole(auth.user) && <Button label={t.verification.openQueue} onPress={onOpenVerify} variant={isAdminRole(auth.user) ? 'secondary' : 'primary'} testID="open-verify" />}
           {isAdminRole(auth.user) && <Button label={t.admin.openDashboard} onPress={onOpenAdmin} variant="secondary" testID="open-admin" />}
           <ProfileCard key={auth.user.id} />
           {auth.demo ? <DemoAccounts /> : <PushCard />}
@@ -77,7 +82,7 @@ function DemoAccounts() {
   const { t } = useLocale();
   const auth = useAuth();
   const [done, setDone] = useState(false);
-  const roles = ['user', 'owner', 'admin'] as const;
+  const roles = ['user', 'owner', 'verifier', 'admin'] as const;
   return (
     <View style={styles.card} testID="demo-accounts">
       <Text style={styles.h2}>{auth.status === 'signed_in' ? t.demo.switchTitle : t.demo.accountsTitle}</Text>

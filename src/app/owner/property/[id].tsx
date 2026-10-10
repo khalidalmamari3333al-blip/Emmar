@@ -10,6 +10,7 @@ export default function EditPropertyRoute() {
       propertyId={id}
       onBack={() => (router.canGoBack() ? router.back() : router.replace('/owner'))}
       onPreview={(pid) => router.push(`/property/${pid}`)}
+      onVerify={(pid) => router.push(`/owner/verify/${pid}`)}
     />
   );
 }

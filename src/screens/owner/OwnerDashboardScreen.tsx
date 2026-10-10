@@ -16,11 +16,14 @@ export interface OwnerDashboardProps {
   onAdd?: () => void;
   onEdit?: (id: string) => void;
   onRequests?: () => void;
+  onVerify?: (id: string) => void;
+  onVerifyAccount?: () => void;
   onBack?: () => void;
   refreshKey?: number;
 }
 
 const STATUS_TONE = { draft: 'warn', published: 'good', archived: 'neutral' } as const;
+const VERIFY_TONE = { unverified: 'neutral', pending: 'warn', verified: 'good', rejected: 'bad' } as const;
 
 export function OwnerDashboardScreen({
   loadStats = getOwnerStats,
@@ -28,6 +31,8 @@ export function OwnerDashboardScreen({
   onAdd = () => {},
   onEdit = () => {},
   onRequests = () => {},
+  onVerify = () => {},
+  onVerifyAccount = () => {},
   onBack,
   refreshKey = 0,
 }: OwnerDashboardProps) {
@@ -73,6 +78,7 @@ export function OwnerDashboardScreen({
               testID="open-requests"
             />
           </View>
+          <Button label={t.verification.verifyAccount} onPress={onVerifyAccount} variant="ghost" testID="verify-account" />
 
           <Text style={styles.h2}>{t.owner.myProperties}</Text>
           {!props && <Notice text="…" />}
@@ -95,7 +101,13 @@ export function OwnerDashboardScreen({
                   <View style={{ flexDirection: 'row', gap: 6 }}>
                     <Pill label={t.owner.status[p.status]} tone={STATUS_TONE[p.status]} />
                     {p.featured && <Pill label={t.owner.featured} tone="accent" />}
+                    <Pill label={t.verification.listing[p.verificationStatus]} tone={VERIFY_TONE[p.verificationStatus]} />
                   </View>
+                  {p.verificationStatus !== 'verified' && (
+                    <Pressable onPress={() => onVerify(p.id)} accessibilityRole="button" testID={`verify-${p.id}`}>
+                      <Text style={styles.edit}>{t.verification.verifyCta} ←</Text>
+                    </Pressable>
+                  )}
                 </View>
                 <Text style={styles.edit}>{t.owner.edit}</Text>
               </Pressable>

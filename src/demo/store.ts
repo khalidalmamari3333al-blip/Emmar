@@ -7,19 +7,33 @@
 import { mockActiveBookings, mockLayouts } from '@/data/mock/layout';
 import { mockProperties } from '@/data/mock/properties';
 import { periodsOverlap } from '@/lib/dates';
+import { evaluateRules } from '@/services/verificationRules';
 import type { BookingStatus } from '@/services/bookings';
 import type { NotificationData, NotificationKind } from '@/services/notifications';
 import type { BuildingLayout } from '@/types/layout';
 import type { ListingStatus, PropertyDetail } from '@/types/property';
+import type {
+  AutomatedStatus,
+  DeclaredData,
+  HumanStatus,
+  ListingVerification,
+  OfficialStatus,
+  RequestStatus,
+  VerificationCheck,
+  VerificationDecision,
+  VerificationDocument,
+  VerificationSubject,
+} from '@/types/verification';
 
-export type DemoRole = 'user' | 'owner' | 'admin';
+export type DemoRole = 'user' | 'owner' | 'admin' | 'verifier';
+export type DemoUserRole = DemoRole | 'support';
 
 export interface DemoUser {
   id: string;
   email: string;
   fullName: string;
   phone?: string;
-  role: DemoRole;
+  role: DemoUserRole;
 }
 
 export interface DemoImage {
@@ -37,6 +51,35 @@ export interface DemoAudit {
   entityId: string;
   details: Record<string, unknown>;
   createdAt: string;
+}
+
+export interface DemoVerification {
+  id: string;
+  subject: VerificationSubject;
+  propertyId?: string;
+  submittedBy: string;
+  status: RequestStatus;
+  automatedStatus: AutomatedStatus;
+  officialStatus: OfficialStatus;
+  humanStatus: HumanStatus;
+  declared: DeclaredData;
+  identityLast4?: string;
+  /** بصمة تجريبية غير قابلة للعكس بسهولة — لا يُخزن الرقم كاملًا */
+  identityHash?: string;
+  documents: VerificationDocument[];
+  checks: VerificationCheck[];
+  decisions: (VerificationDecision & { decidedBy: string })[];
+  submittedAt?: string;
+  decidedAt?: string;
+  createdAt: string;
+}
+
+export interface DemoLandlord {
+  userId: string;
+  accountType: 'individual' | 'company';
+  legalName?: string;
+  companyCr?: string;
+  verificationStatus: ListingVerification;
 }
 
 export interface DemoProperty extends PropertyDetail {
@@ -72,6 +115,7 @@ export const DEMO_USERS = {
   tenant: 'demo-tenant',
   owner: 'demo-owner',
   admin: 'demo-admin',
+  verifier: 'demo-verifier',
 } as const;
 
 const HOLD_MS = 48 * 3600 * 1000;
@@ -83,6 +127,8 @@ interface State {
   bookings: DemoBooking[];
   notifications: DemoNotification[];
   audit: DemoAudit[];
+  verifications: DemoVerification[];
+  landlords: DemoLandlord[];
   currentUserId: string | null;
   seq: number;
 }
@@ -98,11 +144,24 @@ function seed(now = Date.now()): State {
     { id: DEMO_USERS.tenant, email: 'salem@demo.aqari.om', fullName: 'سالم البلوشي', phone: '+968 9123 4567', role: 'user' },
     { id: DEMO_USERS.owner, email: 'khalid@demo.aqari.om', fullName: 'خالد المعمري', phone: '+968 9555 0101', role: 'owner' },
     { id: DEMO_USERS.admin, email: 'admin@demo.aqari.om', fullName: 'مدير المنصة', role: 'admin' },
+    { id: DEMO_USERS.verifier, email: 'verify@demo.aqari.om', fullName: 'مريم الرواحية', role: 'verifier' },
     { id: 'demo-reem', email: 'reem@demo.aqari.om', fullName: 'ريم الحارثية', phone: '+968 9222 3344', role: 'user' },
     { id: 'demo-ahmed', email: 'ahmed@demo.aqari.om', fullName: 'أحمد الشكيلي', phone: '+968 9777 8899', role: 'user' },
     { id: 'demo-other', email: 'tenant@demo.aqari.om', fullName: 'مستأجر', role: 'user' },
   ];
-  const properties: DemoProperty[] = mockProperties.map((p) => ({ ...clone(p), ownerId: DEMO_USERS.owner, status: 'published', updatedAt: iso(now) }));
+  // العروض التجريبية موثّقة سلفًا (مراجعة مستندات تجريبية) حتى يظهر شكل الشارة
+  const properties: DemoProperty[] = mockProperties.map((p, i) => ({
+    ...clone(p), ownerId: DEMO_USERS.owner, status: 'published', updatedAt: iso(now),
+    verificationStatus: 'verified', verifiedAt: iso(now - (20 + i) * 864e5), verifiedScope: i < 2 ? 'official_registry' : 'documents_reviewed',
+  }));
+  // إعلان جديد بانتظار فريق التحقق
+  properties.push({
+    id: 'demo-pending', ownerId: DEMO_USERS.owner, status: 'draft', updatedAt: iso(now), featured: false,
+    kind: 'rent', type: 'apartment', city: 'sohar', title: { ar: 'شقة جديدة في فلج القبائل', en: 'New flat in Falaj Al Qabail' },
+    district: { ar: 'فلج القبائل', en: 'Falaj Al Qabail' }, description: { ar: 'إعلان جديد لم يُنشر بعد — بانتظار التوثيق.', en: 'New listing, not yet published — awaiting verification.' },
+    priceOmr: 230, pricePeriod: 'monthly', bedrooms: 2, areaSqm: 105, verificationStatus: 'pending', amenities: ['ac', 'parking'], utilities: ['water'],
+    depositOmr: 230, cancellationPolicy: 'moderate',
+  });
   const layouts = clone(mockLayouts);
   const bookings: DemoBooking[] = mockActiveBookings.map((b, i) => ({
     id: `seed-${i}`,
@@ -115,13 +174,26 @@ function seed(now = Date.now()): State {
     monthlyPriceOmr: 50,
     createdAt: iso(now - 30 * 864e5),
   }));
-  const s: State = { users, properties, layouts, bookings, notifications: [], audit: [], currentUserId: null, seq: 1 };
+  const s: State = { users, properties, layouts, bookings, notifications: [], audit: [], verifications: [], landlords: [], currentUserId: null, seq: 1 };
   state = s;
   // طلبان جديدان بانتظار المالك + حجز مؤكد للطالب، حتى لا تبدو اللوحات فارغة
   createBooking('demo-reem', { bedId: 'Y-103-b1', start: '2026-11-01', end: '2027-03-01' }, now - 3 * 3600e3);
   createBooking('demo-ahmed', { bedId: 'KN-102-b2', start: '2026-11-01', end: '2027-03-01' }, now - 20 * 60e3);
   const salem = createBooking(DEMO_USERS.tenant, { bedId: 'KS-003-b1', start: '2026-11-01', end: '2027-03-01' }, now - 2 * 864e5);
   if (salem.status === 'ok') decide(DEMO_USERS.owner, salem.id, 'confirmed', now - 864e5);
+
+  // المالك التجريبي موثّق، وطلب توثيق واحد بانتظار فريق التحقق
+  s.landlords.push({ userId: DEMO_USERS.owner, accountType: 'individual', legalName: 'خالد المعمري', verificationStatus: 'verified' });
+  const declared = { deedNumber: 'TEST-OK-1001', declaredOwnerName: 'خالد المعمري', declaredCity: 'sohar' as const, plotNumber: '12/345' };
+  const docs: VerificationDocument[] = [
+    { id: 'seed-doc-1', docType: 'title_deed', path: `${DEMO_USERS.owner}/seed-ver-1/title_deed.pdf`, mimeType: 'application/pdf', sizeBytes: 482113, sha256: 'a'.repeat(64), uploadedBy: DEMO_USERS.owner, createdAt: iso(now - 5 * 3600e3) },
+  ];
+  const r = evaluateRules({ subject: 'property', docs, foreignHashes: new Set(), ...declared, listingCity: 'sohar', landlordName: 'خالد المعمري' });
+  s.verifications.push({
+    id: 'seed-ver-1', subject: 'property', propertyId: 'demo-pending', submittedBy: DEMO_USERS.owner, status: 'submitted',
+    automatedStatus: r.automated, officialStatus: r.official, humanStatus: 'pending', declared, documents: docs, checks: r.checks, decisions: [],
+    submittedAt: iso(now - 4 * 3600e3), createdAt: iso(now - 5 * 3600e3),
+  });
   return s;
 }
 

@@ -40,6 +40,10 @@ export interface PropertyRow {
   rules_ar?: string | null;
   rules_en?: string | null;
   cancellation_policy?: PropertyDetail['cancellationPolicy'] | null;
+  verification_status?: PropertySummary['verificationStatus'] | null;
+  verified_at?: string | null;
+  verification_expires_at?: string | null;
+  verified_scope?: PropertySummary['verifiedScope'] | null;
   property_images?: { path: string; position: number; is_cover: boolean }[] | null;
 }
 
@@ -47,7 +51,7 @@ export interface PropertyRow {
 export const PAGE_SIZE = 20;
 
 const SUMMARY_COLUMNS =
-  'id,kind,type,city,district_ar,district_en,title_ar,title_en,price_omr,price_period,bedrooms,area_sqm,cover_image_path,featured,furnished,amenities,utilities_included,near_landmarks';
+  'id,kind,type,city,district_ar,district_en,title_ar,title_en,price_omr,price_period,bedrooms,area_sqm,cover_image_path,featured,furnished,amenities,utilities_included,near_landmarks,verification_status,verified_at,verification_expires_at,verified_scope';
 const DETAIL_COLUMNS = `${SUMMARY_COLUMNS},description_ar,description_en,deposit_omr,fees_omr,rules_ar,rules_en,cancellation_policy,property_images(path,position,is_cover)`;
 
 const num = (v: number | string | null | undefined) => (v == null ? undefined : Number(v));
@@ -67,6 +71,11 @@ export function mapPropertyRow(row: PropertyRow, imageUrl?: (path: string) => st
     areaSqm: row.area_sqm == null ? undefined : Number(row.area_sqm),
     imageUrl: row.cover_image_path && imageUrl ? imageUrl(row.cover_image_path) : undefined,
     featured: row.featured,
+    // التوثيق المنتهي لا يُعرض كموثّق
+    verificationStatus:
+      row.verification_status === 'verified' && row.verification_expires_at && new Date(row.verification_expires_at) < new Date() ? 'unverified' : (row.verification_status ?? undefined),
+    verifiedAt: row.verified_at ?? undefined,
+    verifiedScope: row.verified_scope ?? undefined,
     furnished: row.furnished ?? undefined,
     amenities: (row.amenities ?? []) as PropertyDetail['amenities'],
     utilities: (row.utilities_included ?? []) as PropertyDetail['utilities'],

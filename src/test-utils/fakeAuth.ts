@@ -22,3 +22,4 @@ export function fakeAuthBackend(initial: AuthUser | null, overrides: Partial<Aut
 export const STUDENT: AuthUser = { id: 'user-1', email: 'student@example.com', fullName: 'طالب', role: 'user' };
 export const OWNER: AuthUser = { id: 'owner-1', email: 'owner@example.com', fullName: 'مالك', phone: '+96891234567', role: 'owner' };
 export const ADMIN: AuthUser = { id: 'admin-1', email: 'admin@example.com', fullName: 'مدير', role: 'admin' };
+export const VERIFIER: AuthUser = { id: 'verifier-1', email: 'verifier@example.com', fullName: 'موظف تحقق', role: 'verifier' };

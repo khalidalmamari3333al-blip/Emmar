@@ -11,7 +11,7 @@ const users: AdminUser[] = [
   { id: ADMIN.id, email: ADMIN.email, role: 'admin', createdAt: '' },
   { id: 'u2', email: 'salem@example.com', fullName: 'سالم', role: 'user', createdAt: '' },
 ];
-const prop: OwnerProperty = { id: 'p1', title: { ar: 'فيلا', en: 'Villa' }, city: 'muscat', kind: 'sale', status: 'published', featured: false, updatedAt: '', input: emptyPropertyInput() };
+const prop: OwnerProperty = { id: 'p1', title: { ar: 'فيلا', en: 'Villa' }, city: 'muscat', kind: 'sale', status: 'published', featured: false, updatedAt: '', verificationStatus: 'verified', input: emptyPropertyInput() };
 
 const wrap = (props: Parameters<typeof AdminScreen>[0], auth: AuthBackend = fakeAuthBackend(ADMIN)) =>
   render(

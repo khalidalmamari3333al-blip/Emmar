@@ -5,7 +5,7 @@ import type { DemoRole } from '@/demo/store';
 import { isSupabaseConfigured, readConfig } from '@/lib/config';
 import { getSupabase } from '@/lib/supabase';
 
-export type UserRole = 'user' | 'owner' | 'admin';
+export type UserRole = 'user' | 'owner' | 'admin' | 'verifier' | 'support';
 
 export interface AuthUser {
   id: string;
@@ -18,6 +18,8 @@ export interface AuthUser {
 
 export const isOwnerRole = (u: AuthUser | null) => u?.role === 'owner' || u?.role === 'admin';
 export const isAdminRole = (u: AuthUser | null) => u?.role === 'admin';
+/** فريق التحقق (والمدير) */
+export const isStaffRole = (u: AuthUser | null) => u?.role === 'admin' || u?.role === 'verifier';
 
 export type AuthErrorCode = 'invalid_credentials' | 'email_taken' | 'weak_password' | 'email_not_confirmed' | 'invalid_email' | 'rate_limited' | 'unknown';
 

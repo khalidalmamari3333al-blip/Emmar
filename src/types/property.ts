@@ -33,6 +33,10 @@ export interface PropertySummary {
   utilities?: Utility[];
   nearLandmarks?: Landmark[];
   featured: boolean;
+  /** التوثيق كما تحدده قاعدة البيانات (decide_verification) */
+  verificationStatus?: import('./verification').ListingVerification;
+  verifiedAt?: string;
+  verifiedScope?: import('./verification').VerifiedScope;
 }
 
 export interface PropertyDetail extends PropertySummary {

@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CrenellationDivider } from '@/components/omani/CrenellationDivider';
 import { PropertyIllustration } from '@/components/omani/PropertyIllustration';
 import { MockBadge, StatusNotice } from '@/components/StatusNotice';
+import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { pick, useLocale } from '@/i18n';
 import { DataResult, firstPayment, formatPrice, getPropertyById } from '@/services/properties';
 import { colors, font, fonts, radius, shadow, spacing } from '@/theme';
@@ -76,6 +77,8 @@ export function PropertyDetailScreen({ id, load = getPropertyById, onBack, onCho
               {formatPrice(p)} {t.currency}
               {p.pricePeriod === 'monthly' ? ` ${t.perMonth}` : ''}
             </Text>
+
+            <VerifiedBadge item={p} detailed />
 
             <CrenellationDivider />
 

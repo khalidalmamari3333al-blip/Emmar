@@ -42,10 +42,13 @@ beforeAll(async () => {
     .insert({
       owner_id: owner.user.id, kind: 'student', type: 'student_housing', city: 'sohar',
       district_ar: 'الهمبار', district_en: 'Al Humbar', title_ar: `سكن اختبار ${run}`, title_en: `E2E housing ${run}`,
-      price_omr: 50, price_period: 'monthly', status: 'published',
+      price_omr: 50, price_period: 'monthly', status: 'draft',
     })
     .select('id').single().throwOnError();
   propertyId = p!.id;
+  // تجهيز: التوثيق نفسه مختبر في dashboards.e2e؛ هنا نعلّمه موثّقًا بمفتاح الخدمة (مسار النظام) ثم ننشر
+  await admin.from('properties').update({ verification_status: 'verified', verified_at: new Date().toISOString(), verified_scope: 'documents_reviewed', status: 'published' })
+    .eq('id', propertyId).throwOnError();
   const { data: b } = await mockCurrent.from('buildings').insert({ property_id: propertyId, name_ar: 'المبنى أ', name_en: 'Building A' }).select('id').single().throwOnError();
   const { data: f } = await mockCurrent.from('floors').insert({ building_id: b!.id, level: 0 }).select('id').single().throwOnError();
   const { data: r } = await mockCurrent.from('rooms').insert({ floor_id: f!.id, code: '001' }).select('id').single().throwOnError();

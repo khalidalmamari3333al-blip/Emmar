@@ -34,7 +34,7 @@ export interface AdminScreenProps {
   debounceMs?: number;
 }
 
-const ROLES: AdminUser['role'][] = ['user', 'owner', 'admin'];
+const ROLES: AdminUser['role'][] = ['user', 'owner', 'verifier', 'support', 'admin'];
 
 export function AdminScreen(props: AdminScreenProps) {
   const { t } = useLocale();

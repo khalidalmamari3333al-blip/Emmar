@@ -322,4 +322,106 @@ insert into public.property_images (property_id, path, mime_type, size_bytes) se
 select pg_temp.expect_error($$insert into public.property_images (property_id, path, mime_type, size_bytes) select id, id || '/evil.jpg', 'image/jpeg', 100 from t_house$$, '42501', 'another owner cannot add images to this property');
 reset role;
 
+-- ===== 13. التوثيق =====
+\echo '--- verification'
+update public.profiles set full_name = 'موظف تحقق' where id = '00000000-0000-4000-8000-0000000000f1';
+insert into public.mock_gov_registry values ('TEST-OK-3001', 'مالك تجريبي', 'sohar', '1/2');
+
+select pg_temp.as_user('00000000-0000-4000-8000-00000000d001');
+insert into public.landlord_profiles (user_id, legal_name) values (auth.uid(), 'مالك تجريبي') on conflict (user_id) do update set legal_name = excluded.legal_name;
+insert into public.properties (id, owner_id, kind, type, city, district_ar, district_en, title_ar, title_en, price_omr, price_period)
+values ('00000000-0000-4000-8000-0000000000b1', auth.uid(), 'rent', 'apartment', 'sohar', 'الطريف', 'Al Tareef', 'شقة للتوثيق', 'Flat to verify', 200, 'monthly');
+select pg_temp.expect_error($$update public.properties set status = 'published' where id = '00000000-0000-4000-8000-0000000000b1'$$, '23514', 'an unverified listing cannot be published');
+select pg_temp.expect_error($$insert into public.properties (owner_id, kind, type, city, district_ar, district_en, title_ar, title_en, price_omr, price_period, status) values (auth.uid(), 'rent', 'studio', 'sohar', 'x', 'x', 'منشور مباشرة', 'Direct', 1, 'monthly', 'published')$$, '23514', 'a new listing cannot be inserted as published');
+select pg_temp.expect_error($$update public.properties set verification_status = 'verified' where id = '00000000-0000-4000-8000-0000000000b1'$$, '42501', 'owner cannot mark their own listing verified');
+insert into public.properties (owner_id, kind, type, city, district_ar, district_en, title_ar, title_en, price_omr, price_period, verification_status)
+values (auth.uid(), 'rent', 'studio', 'sohar', 'x', 'x', 'محاولة', 'Attempt', 1, 'monthly', 'verified');
+select pg_temp.check((select verification_status from public.properties where title_en = 'Attempt') = 'unverified', 'verification fields are ignored on insert');
+
+insert into public.verification_requests (id, subject, property_id) values ('00000000-0000-4000-8000-0000000000c1', 'property', '00000000-0000-4000-8000-0000000000b1');
+update public.verification_requests set deed_number = 'TEST-OK-3001', declared_owner_name = 'مالك  تجريبي', declared_city = 'sohar' where id = '00000000-0000-4000-8000-0000000000c1';
+insert into public.verification_documents (request_id, doc_type, path, mime_type, size_bytes, sha256)
+values ('00000000-0000-4000-8000-0000000000c1', 'title_deed', auth.uid() || '/00000000-0000-4000-8000-0000000000c1/deed.pdf', 'application/pdf', 200000, repeat('a', 64));
+select pg_temp.expect_error($$insert into public.verification_documents (request_id, doc_type, path, mime_type, size_bytes, sha256) values ('00000000-0000-4000-8000-0000000000c1', 'other', 'someone-else/x.pdf', 'application/pdf', 1, repeat('b', 64))$$, '42501', 'documents must be stored in the uploader''s own folder');
+select pg_temp.expect_error($$insert into public.verification_documents (request_id, doc_type, path, mime_type, size_bytes, sha256) values ('00000000-0000-4000-8000-0000000000c1', 'other', auth.uid() || '/00000000-0000-4000-8000-0000000000c1/x.exe', 'application/x-msdownload', 1, repeat('b', 64))$$, '23514', 'only pdf, jpeg and png documents are accepted');
+select pg_temp.expect_error($$insert into public.verification_checks (request_id, run_no, code, source, result, required) values ('00000000-0000-4000-8000-0000000000c1', 1, 'x', 'automated', 'pass', true)$$, '42501', 'clients cannot write check results');
+select pg_temp.expect_error($$select public.decide_verification('00000000-0000-4000-8000-0000000000c1', 'approved')$$, '42501', 'owners cannot approve verification');
+select pg_temp.check(public.submit_verification('00000000-0000-4000-8000-0000000000c1') = 'passed', 'automated checks pass for a consistent request');
+select pg_temp.check((select official_status from public.verification_requests where id = '00000000-0000-4000-8000-0000000000c1') = 'verified', 'mock registry confirms the deed (marked is_mock)');
+select pg_temp.check((select bool_and(is_mock) from public.verification_checks where source = 'official'), 'official results are always flagged as mock');
+select pg_temp.check((select verification_status from public.properties where id = '00000000-0000-4000-8000-0000000000b1') = 'pending', 'listing becomes pending review');
+update public.verification_requests set deed_number = 'X-1' where id = '00000000-0000-4000-8000-0000000000c1';
+select pg_temp.check((select deed_number from public.verification_requests where id = '00000000-0000-4000-8000-0000000000c1') = 'TEST-OK-3001', 'a submitted request is locked');
+reset role;
+
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e3');
+select pg_temp.check((select count(*) from public.verification_requests) = 0 and (select count(*) from public.verification_documents) = 0, 'other users cannot see verification requests or documents');
+select pg_temp.expect_error($$insert into public.verification_requests (subject, property_id) values ('property', '00000000-0000-4000-8000-0000000000b1')$$, '42501', 'cannot open verification for someone else''s listing');
+select pg_temp.expect_error($$select * from public.verification_queue()$$, '42501', 'non-staff cannot read the verification queue');
+reset role;
+
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000f1');
+select pg_temp.check((select count(*) from public.verification_queue() where id = '00000000-0000-4000-8000-0000000000c1') = 1, 'verifier sees the request in the queue');
+select pg_temp.check((select count(*) from public.verification_documents where request_id = '00000000-0000-4000-8000-0000000000c1') = 1, 'verifier can read the private documents');
+select pg_temp.check((select count(*) from public.properties where id = '00000000-0000-4000-8000-0000000000b1') = 1, 'verifier can see the draft under review');
+select pg_temp.expect_error($$select public.decide_verification('00000000-0000-4000-8000-0000000000c1', 'rejected')$$, '23514', 'rejection requires a reason');
+select public.decide_verification('00000000-0000-4000-8000-0000000000c1', 'approved');
+select pg_temp.check((select verification_status = 'verified' and verified_scope = 'official_registry' and verification_expires_at > now() from public.properties where id = '00000000-0000-4000-8000-0000000000b1'), 'approval verifies the listing with scope and expiry');
+select pg_temp.expect_error($$select public.decide_verification('00000000-0000-4000-8000-0000000000c1', 'rejected', 'late')$$, '23514', 'a decided request cannot be decided again');
+reset role;
+
+select pg_temp.as_user('00000000-0000-4000-8000-00000000d001');
+update public.properties set status = 'published' where id = '00000000-0000-4000-8000-0000000000b1';
+select pg_temp.check((select status from public.properties where id = '00000000-0000-4000-8000-0000000000b1') = 'published', 'a verified listing can be published');
+update public.properties set price_omr = 210 where id = '00000000-0000-4000-8000-0000000000b1';
+select pg_temp.check((select status = 'published' and verification_status = 'verified' from public.properties where id = '00000000-0000-4000-8000-0000000000b1'), 'a price change keeps the verification');
+update public.properties set district_ar = 'فلج القبائل', district_en = 'Falaj Al Qabail' where id = '00000000-0000-4000-8000-0000000000b1';
+select pg_temp.check((select status = 'draft' and verification_status = 'unverified' from public.properties where id = '00000000-0000-4000-8000-0000000000b1'), 'a substantive edit drops verification and unpublishes');
+reset role;
+
+-- محاولة احتيال: مؤجر آخر يستخدم نفس السند ونفس الملف
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e3');
+insert into public.properties (id, owner_id, kind, type, city, district_ar, district_en, title_ar, title_en, price_omr, price_period)
+values ('00000000-0000-4000-8000-0000000000b2', auth.uid(), 'rent', 'apartment', 'sohar', 'الطريف', 'Al Tareef', 'شقة منسوخة', 'Copied flat', 150, 'monthly');
+insert into public.verification_requests (id, subject, property_id, deed_number, declared_owner_name, declared_city)
+values ('00000000-0000-4000-8000-0000000000c2', 'property', '00000000-0000-4000-8000-0000000000b2', 'TEST-OK-3001', 'مالك تجريبي', 'sohar');
+insert into public.verification_documents (request_id, doc_type, path, mime_type, size_bytes, sha256)
+values ('00000000-0000-4000-8000-0000000000c2', 'title_deed', auth.uid() || '/00000000-0000-4000-8000-0000000000c2/deed.pdf', 'application/pdf', 200000, repeat('a', 64));
+select pg_temp.check(public.submit_verification('00000000-0000-4000-8000-0000000000c2') = 'failed', 'reused deed and file fail the automated checks');
+select pg_temp.check((select array_agg(code order by code) from public.verification_checks where request_id = '00000000-0000-4000-8000-0000000000c2' and result = 'fail' and source = 'automated') = '{duplicate_deed,duplicate_file,name_match}', 'failed checks name the exact problems');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000f1');
+select pg_temp.expect_error($$select public.decide_verification('00000000-0000-4000-8000-0000000000c2', 'approved', 'looks fine')$$, '23514', 'staff cannot approve when mandatory checks failed');
+select public.decide_verification('00000000-0000-4000-8000-0000000000c2', 'rejected', 'سند مستخدم لدى مؤجر آخر');
+select pg_temp.check((select verification_status from public.properties where id = '00000000-0000-4000-8000-0000000000b2') = 'rejected', 'rejected listing is marked rejected');
+insert into public.verification_requests (id, subject) values ('00000000-0000-4000-8000-0000000000c3', 'landlord');
+select public.set_verification_identity('00000000-0000-4000-8000-0000000000c3', '12345678');
+select public.submit_verification('00000000-0000-4000-8000-0000000000c3');
+select pg_temp.check((select identity_last4 = '5678' and identity_hash ~ '^[0-9a-f]{64}$' from public.verification_requests where id = '00000000-0000-4000-8000-0000000000c3'), 'identity numbers are stored as a hash plus last 4 digits only');
+select pg_temp.expect_error($$select public.decide_verification('00000000-0000-4000-8000-0000000000c3', 'rejected', 'x')$$, '42501', 'staff cannot review their own request');
+reset role;
+
+-- طلب المؤجر: يفشل بلا بيانات، يُطلب استكمال، ثم يُعاد ويُعتمد
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e3');
+insert into public.verification_requests (id, subject) values ('00000000-0000-4000-8000-0000000000c4', 'landlord');
+select pg_temp.check(public.submit_verification('00000000-0000-4000-8000-0000000000c4') = 'failed', 'landlord request without ID or documents fails');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000f1');
+select public.decide_verification('00000000-0000-4000-8000-0000000000c4', 'needs_info', 'أرفق صورة الهوية');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e3');
+insert into public.landlord_profiles (user_id, legal_name) values (auth.uid(), 'مالك ثان');
+select public.set_verification_identity('00000000-0000-4000-8000-0000000000c4', '99887766');
+insert into public.verification_documents (request_id, doc_type, path, mime_type, size_bytes, sha256)
+values ('00000000-0000-4000-8000-0000000000c4', 'id_card', auth.uid() || '/00000000-0000-4000-8000-0000000000c4/id.jpg', 'image/jpeg', 50000, repeat('c', 64));
+select pg_temp.check(public.submit_verification('00000000-0000-4000-8000-0000000000c4') = 'passed', 'resubmitted landlord request passes');
+select pg_temp.check((select reason from public.verification_decisions where request_id = '00000000-0000-4000-8000-0000000000c4') = 'أرفق صورة الهوية', 'the landlord can read the reviewer''s reason');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000f1');
+select public.decide_verification('00000000-0000-4000-8000-0000000000c4', 'approved');
+select pg_temp.check((select verification_status from public.landlord_profiles where user_id = '00000000-0000-4000-8000-0000000000e3') = 'verified', 'approved landlord profile is verified');
+reset role;
+select pg_temp.check((select count(*) from public.audit_logs where action in ('verification.approved', 'verification.rejected', 'verification.needs_info', 'verification.submitted')) >= 6, 'every verification step is audited');
+select pg_temp.check((select count(*) from public.audit_logs where action = 'property.reverification') = 1, 'substantive edits are audited');
+
 \echo 'ALL DATABASE TESTS PASSED'

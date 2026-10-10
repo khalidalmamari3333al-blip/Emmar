@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { LocalizedText } from '@/i18n/types';
 import { demoAdmin, demoOwner } from '@/demo/services';
 import { readConfig } from '@/lib/config';
+import type { UserRole } from '@/lib/auth';
 import { getSupabase } from '@/lib/supabase';
 import type { BookingStatus } from '@/services/bookings';
 import { effectiveStatus } from '@/services/bookings';
@@ -10,7 +11,7 @@ import { Amenity, CancellationPolicy, City, Furnished, Landmark, ListingKind, Li
 
 import { mapPropertyRow, PROPERTY_IMAGES_BUCKET, PropertyRow } from './properties';
 
-export type Result<T = void> = { ok: true; data: T } | { ok: false; code: 'not_configured' | 'not_allowed' | 'in_use' | 'error'; message?: string };
+export type Result<T = void> = { ok: true; data: T } | { ok: false; code: 'not_configured' | 'not_allowed' | 'in_use' | 'needs_verification' | 'error'; message?: string };
 
 const PG_INSUFFICIENT_PRIVILEGE = '42501';
 const PG_FOREIGN_KEY_VIOLATION = '23503';
@@ -23,6 +24,7 @@ function client(): SupabaseClient | null {
 
 function fail(error: { code?: string; message: string }): Result<never> {
   if (error.code === PG_INSUFFICIENT_PRIVILEGE) return { ok: false, code: 'not_allowed', message: error.message };
+  if (error.message.includes('verification_required')) return { ok: false, code: 'needs_verification', message: error.message };
   if (error.code === PG_FOREIGN_KEY_VIOLATION) return { ok: false, code: 'in_use', message: error.message };
   return { ok: false, code: 'error', message: error.message };
 }
@@ -159,12 +161,13 @@ export interface OwnerProperty {
   featured: boolean;
   imageUrl?: string;
   updatedAt: string;
+  verificationStatus: NonNullable<import('@/types/property').PropertySummary['verificationStatus']>;
 }
 
 type OwnerRow = PropertyRow & { status: ListingStatus; updated_at: string; description_ar: string | null; description_en: string | null };
 
 const OWNER_COLUMNS =
-  'id,kind,type,city,district_ar,district_en,title_ar,title_en,description_ar,description_en,price_omr,price_period,bedrooms,area_sqm,cover_image_path,featured,status,updated_at,furnished,amenities,utilities_included,near_landmarks,deposit_omr,fees_omr,rules_ar,rules_en,cancellation_policy';
+  'id,kind,type,city,district_ar,district_en,title_ar,title_en,description_ar,description_en,price_omr,price_period,bedrooms,area_sqm,cover_image_path,featured,status,updated_at,verification_status,verified_at,verification_expires_at,verified_scope,furnished,amenities,utilities_included,near_landmarks,deposit_omr,fees_omr,rules_ar,rules_en,cancellation_policy';
 
 export function mapOwnerRow(r: OwnerRow, imageUrl?: (p: string) => string): OwnerProperty {
   const p = mapPropertyRow(r, imageUrl);
@@ -177,6 +180,7 @@ export function mapOwnerRow(r: OwnerRow, imageUrl?: (p: string) => string): Owne
     featured: r.featured,
     imageUrl: p.imageUrl,
     updatedAt: r.updated_at,
+    verificationStatus: p.verificationStatus ?? 'unverified',
     input: {
       kind: r.kind, type: r.type, city: r.city,
       districtAr: r.district_ar, districtEn: r.district_en, titleAr: r.title_ar, titleEn: r.title_en,
@@ -544,7 +548,7 @@ export interface AdminUser {
   email: string;
   fullName?: string;
   phone?: string;
-  role: 'user' | 'owner' | 'admin';
+  role: UserRole;
   createdAt: string;
 }
 
