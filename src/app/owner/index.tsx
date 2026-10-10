@@ -16,6 +16,7 @@ export default function OwnerRoute() {
       onVerify={(id) => router.push(`/owner/verify/${id}`)}
       onVerifyAccount={() => router.push('/owner/verify/account')}
       onPayments={() => router.push('/owner/payments')}
+      onMaintenance={() => router.push('/owner/maintenance')}
     />
   );
 }

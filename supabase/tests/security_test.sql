@@ -521,4 +521,76 @@ select pg_temp.check(public.record_payment_event('evt_refund_000001', 'mock_pay'
 select pg_temp.check((select status = 'refunded' and refunded_at is not null and receipt_no is not null from public.payments where id = (select id from t_pay where kind = 'deposit')), 'refunded deposit keeps its receipt');
 select pg_temp.check((select count(*) from public.audit_logs where entity = 'payment') >= 6, 'payment steps are audited');
 
+-- ===== 16. ما بعد السكن: صيانة، بلاغات، تقييمات =====
+\echo '--- post-stay'
+create temp table t_prop as select public.property_of_bed(bed1) as id from t_ids;
+grant select on t_prop to authenticated, anon;
+
+-- الصيانة
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e3');
+select pg_temp.expect_error($$select public.open_maintenance('00000000-0000-4000-8000-0000000000d7', 'ac', 'urgent', 'المكيف لا يعمل')$$, '42501', 'only the booking tenant can open maintenance');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e1');
+create temp table t_m as select public.open_maintenance('00000000-0000-4000-8000-0000000000d7', 'ac', 'urgent', 'المكيف لا يعمل', 'منذ أمس') as id;
+grant select on t_m to authenticated, anon;
+select pg_temp.check((select landlord_id = '00000000-0000-4000-8000-00000000d001' and status = 'open' from public.maintenance_requests where id = (select id from t_m)), 'maintenance request goes to the landlord');
+select pg_temp.expect_error($$select public.update_maintenance((select id from t_m), 'resolved')$$, '23514', 'the tenant cannot mark it resolved');
+select pg_temp.expect_error($$update public.maintenance_requests set status = 'resolved'$$, '42501', 'no direct writes to maintenance');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e3');
+select pg_temp.check((select count(*) from public.maintenance_requests) = 0, 'other users cannot see maintenance requests');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-00000000d001');
+select public.update_maintenance((select id from t_m), 'in_progress', 'الفني في الطريق');
+select public.update_maintenance((select id from t_m), 'resolved', 'تم تغيير الضاغط');
+select pg_temp.check((select status = 'resolved' and resolved_at is not null and landlord_note = 'تم تغيير الضاغط' from public.maintenance_requests where id = (select id from t_m)), 'landlord progresses and resolves with a note');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e1');
+select public.update_maintenance((select id from t_m), 'closed');
+select pg_temp.check((select status from public.maintenance_requests where id = (select id from t_m)) = 'closed', 'tenant confirms and closes');
+reset role;
+
+-- البلاغات
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e3');
+insert into public.property_reports (property_id, reason, details) select id, 'wrong_info', 'السعر غير صحيح' from t_prop;
+select pg_temp.expect_error($$insert into public.property_reports (property_id, reason) select id, 'fraud' from t_prop$$, '23505', 'one open report per user per listing');
+select pg_temp.expect_error($$insert into public.property_reports (property_id, reason) values ('00000000-0000-4000-8000-0000000000a9', 'fraud')$$, '42501', 'cannot report a listing you cannot see');
+select pg_temp.expect_error($$update public.property_reports set status = 'dismissed'$$, '42501', 'reporters cannot change report status');
+select pg_temp.expect_error($$select public.handle_report((select id from public.property_reports limit 1), 'dismissed')$$, '42501', 'only support/admin handle reports');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e1');
+select pg_temp.check((select count(*) from public.property_reports) = 0, 'reports are private to the reporter and support');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000ad');
+select public.handle_report((select id from public.property_reports where reporter_id = '00000000-0000-4000-8000-0000000000e3'), 'resolved', 'تم تصحيح السعر');
+select pg_temp.check((select status = 'resolved' and handled_by = auth.uid() from public.property_reports where reporter_id = '00000000-0000-4000-8000-0000000000e3'), 'admin resolves the report');
+reset role;
+
+-- التقييمات: فقط بعد إقامة مكتملة
+insert into public.bookings (id, user_id, bed_id, start_date, end_date, status)
+select '00000000-0000-4000-8000-0000000000d8', '00000000-0000-4000-8000-0000000000e1', bed1, '2025-01-01', '2025-03-01', 'confirmed' from t_ids;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e1');
+select pg_temp.expect_error($$insert into public.reviews (booking_id, property_id, rating) select '00000000-0000-4000-8000-0000000000d7', id, 5 from t_prop$$, '23514', 'cannot review a stay that has not ended');
+select pg_temp.expect_error($$insert into public.reviews (booking_id, property_id, rating) select '00000000-0000-4000-8000-0000000000d8', id, 6 from t_prop$$, '23514', 'rating must be 1–5');
+insert into public.reviews (booking_id, property_id, rating, comment) values ('00000000-0000-4000-8000-0000000000d8', '00000000-0000-4000-8000-0000000000a3', 4, 'سكن هادئ ونظيف');
+select pg_temp.check((select property_id = (select id from t_prop) from public.reviews where booking_id = '00000000-0000-4000-8000-0000000000d8'), 'the review is bound to the booked property (cannot be redirected)');
+select pg_temp.expect_error($$insert into public.reviews (booking_id, rating) values ('00000000-0000-4000-8000-0000000000d8', 5)$$, '23505', 'one review per booking (property is derived from the booking)');
+select pg_temp.expect_error($$update public.reviews set rating = 5$$, '42501', 'reviews cannot be edited afterwards');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e3');
+select pg_temp.expect_error($$insert into public.reviews (booking_id, property_id, rating) select '00000000-0000-4000-8000-0000000000d8', id, 1 from t_prop$$, '23514', 'cannot review someone else''s stay');
+select pg_temp.expect_error($$select public.reply_review((select id from public.property_reviews((select id from t_prop)) limit 1), 'رد')$$, '42501', 'only the property owner can reply');
+reset role;
+select pg_temp.as_user(null);
+select pg_temp.check((select count(*) = 1 and bool_and(rating = 4 and reviewer = 'طالب') from public.property_reviews((select id from t_prop))), 'visitors see reviews with first name only');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-00000000d001');
+select public.reply_review((select id from public.reviews where booking_id = '00000000-0000-4000-8000-0000000000d8'), 'شكرًا لك');
+select pg_temp.expect_error($$select public.reply_review((select id from public.reviews where booking_id = '00000000-0000-4000-8000-0000000000d8'), 'مرة أخرى')$$, '42501', 'a review gets one landlord reply');
+reset role;
+select pg_temp.check((select landlord_reply from public.property_reviews((select id from t_prop)) limit 1) = 'شكرًا لك', 'the landlord reply is public');
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e1');
+select pg_temp.expect_error($$update public.bookings set status = 'cancelled' where id = '00000000-0000-4000-8000-0000000000d8'$$, '23514', 'a completed stay cannot be cancelled afterwards');
+reset role;
+
 \echo 'ALL DATABASE TESTS PASSED'

@@ -5,6 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CrenellationDivider } from '@/components/omani/CrenellationDivider';
 import { PropertyIllustration } from '@/components/omani/PropertyIllustration';
 import { MockBadge, StatusNotice } from '@/components/StatusNotice';
+import { ReportListing } from '@/components/postStay/ReportListing';
+import { ReviewsSection } from '@/components/postStay/ReviewsSection';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { pick, useLocale } from '@/i18n';
 import { DataResult, firstPayment, formatPrice, getPropertyById } from '@/services/properties';
@@ -159,6 +161,8 @@ export function PropertyDetailScreen({ id, load = getPropertyById, onBack, onCho
             ) : (
               <Text style={styles.soon}>{t.detail.requestSoon}</Text>
             )}
+            <ReviewsSection propertyId={p.id} ownerId={p.ownerId} />
+            <ReportListing propertyId={p.id} />
           </FadeIn>
         </ScrollView>
       )}

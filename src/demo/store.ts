@@ -13,6 +13,7 @@ import type { NotificationData, NotificationKind } from '@/services/notification
 import type { BuildingLayout } from '@/types/layout';
 import type { Contract } from '@/types/contract';
 import type { Payment } from '@/types/payment';
+import type { MaintenanceRequest, PropertyReport, PublicReview } from '@/types/postStay';
 import type { ListingStatus, PropertyDetail } from '@/types/property';
 import type {
   AutomatedStatus,
@@ -133,6 +134,9 @@ interface State {
   landlords: DemoLandlord[];
   contracts: Contract[];
   payments: Payment[];
+  maintenance: MaintenanceRequest[];
+  reports: (PropertyReport & { reporterId: string })[];
+  reviews: (PublicReview & { bookingId: string; propertyId: string; tenantId: string })[];
   paymentTx: { providerRef: string; paymentId: string; type: 'charge' | 'refund'; amountOmr: number; status: 'initiated' | 'succeeded' | 'failed'; createdBy: string }[];
   /** عقد سالم التجريبي يُنشأ عند أول وصول (البصمة تُحسب بشكل غير متزامن) */
   contractsSeeded: boolean;
@@ -181,13 +185,15 @@ function seed(now = Date.now()): State {
     monthlyPriceOmr: 50,
     createdAt: iso(now - 30 * 864e5),
   }));
-  const s: State = { users, properties, layouts, bookings, notifications: [], audit: [], verifications: [], landlords: [], contracts: [], payments: [], paymentTx: [], contractsSeeded: false, currentUserId: null, seq: 1 };
+  const s: State = { users, properties, layouts, bookings, notifications: [], audit: [], verifications: [], landlords: [], contracts: [], payments: [], paymentTx: [], maintenance: [], reports: [], reviews: [], contractsSeeded: false, currentUserId: null, seq: 1 };
   state = s;
   // طلبان جديدان بانتظار المالك + حجز مؤكد للطالب، حتى لا تبدو اللوحات فارغة
   createBooking('demo-reem', { bedId: 'Y-103-b1', start: '2026-11-01', end: '2027-03-01' }, now - 3 * 3600e3);
   createBooking('demo-ahmed', { bedId: 'KN-102-b2', start: '2026-11-01', end: '2027-03-01' }, now - 20 * 60e3);
   const salem = createBooking(DEMO_USERS.tenant, { bedId: 'KS-003-b1', start: '2026-11-01', end: '2027-03-01' }, now - 2 * 864e5);
   if (salem.status === 'ok') decide(DEMO_USERS.owner, salem.id, 'confirmed', now - 864e5);
+
+  seedPostStay(s, now, salem.status === 'ok' ? salem.id : undefined);
 
   // المالك التجريبي موثّق، وطلب توثيق واحد بانتظار فريق التحقق
   s.landlords.push({ userId: DEMO_USERS.owner, accountType: 'individual', legalName: 'خالد المعمري', verificationStatus: 'verified' });
@@ -330,4 +336,30 @@ export function newId(prefix: string) {
 export function audit(action: string, entity: string, entityId: string, details: Record<string, unknown> = {}) {
   const s = demoState();
   s.audit.unshift({ id: s.seq++, actorId: s.currentUserId, action, entity, entityId, details, createdAt: new Date().toISOString() });
+}
+
+/** إقامات سابقة مكتملة وتقييماتها، وطلب صيانة مفتوح، وبلاغ — حتى تظهر لوحات ما بعد السكن. */
+function seedPostStay(s: State, now: number, salemBooking?: string) {
+  const past = (id: string, userId: string, bedId: string, start: string, end: string): DemoBooking => ({
+    id, userId, bedId, start, end, status: 'confirmed', expiresAt: iso(now), monthlyPriceOmr: findBed(bedId)?.bed.monthlyPriceOmr ?? 45, createdAt: iso(now - 400 * 864e5),
+  });
+  s.bookings.push(
+    past('past-reem', 'demo-reem', 'Y-103-b1', '2025-09-01', '2026-01-01'),
+    past('past-ahmed', 'demo-ahmed', 'Y-103-b1', '2025-02-01', '2025-06-01'),
+    // إقامة سابقة لسالم لم يقيّمها بعد — يستطيع تجربة التقييم
+    past('past-salem', DEMO_USERS.tenant, 'Y-103-b1', '2026-02-01', '2026-06-01'),
+  );
+  const prop = findBed('Y-103-b1')?.propertyId ?? 'mock-2';
+  s.reviews.push(
+    { id: 'rev-1', bookingId: 'past-reem', propertyId: prop, tenantId: 'demo-reem', rating: 5, comment: 'قريب جدًا من الجامعة، والإنترنت ممتاز، وغرفة المذاكرة هادئة.', reviewer: 'ريم', stayEnd: '2026-01-01', landlordReply: 'شكرًا ريم، سعدنا بإقامتك!', createdAt: iso(now - 250 * 864e5) },
+    { id: 'rev-2', bookingId: 'past-ahmed', propertyId: prop, tenantId: 'demo-ahmed', rating: 4, comment: 'نظيف ومرتب، المطبخ المشترك يحتاج تنظيمًا أكثر وقت الذروة.', reviewer: 'أحمد', stayEnd: '2025-06-01', createdAt: iso(now - 480 * 864e5) },
+  );
+  if (salemBooking) {
+    const loc = findBed(s.bookings.find((b) => b.id === salemBooking)!.bedId);
+    s.maintenance.push({
+      id: 'maint-1', bookingId: salemBooking, propertyId: loc?.propertyId ?? prop, tenantId: DEMO_USERS.tenant, landlordId: DEMO_USERS.owner,
+      category: 'ac', priority: 'urgent', title: 'المكيّف يقطر ماء', description: 'منذ يومين في الغرفة 003.', status: 'open', createdAt: iso(now - 5 * 3600e3),
+    });
+  }
+  s.reports.push({ id: 'rep-1', propertyId: 'mock-5', reporterId: 'demo-reem', reason: 'wrong_info', details: 'المساحة المذكورة أكبر من الواقع.', status: 'open', createdAt: iso(now - 26 * 3600e3) });
 }

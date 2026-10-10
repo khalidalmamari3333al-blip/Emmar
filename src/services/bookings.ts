@@ -93,7 +93,8 @@ export function mapBookingRow(r: BookingRow, now: Date = new Date()): MyBooking 
   };
 }
 
-export const canCancel = (b: MyBooking) => b.status === 'pending' || b.status === 'confirmed';
+/** لا إلغاء لإقامة انتهت (القاعدة تمنعه أيضًا: bookings_completed_final) */
+export const canCancel = (b: MyBooking, today = new Date().toISOString().slice(0, 10)) => (b.status === 'pending' || b.status === 'confirmed') && b.end > today;
 
 export function supabaseBookingsBackend(): BookingsBackend | null {
   const supabase = getSupabase();

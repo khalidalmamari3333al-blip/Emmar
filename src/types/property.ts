@@ -47,6 +47,8 @@ export interface PropertyDetail extends PropertySummary {
   feesOmr?: number;
   rules?: LocalizedText;
   cancellationPolicy?: CancellationPolicy;
+  /** المالك (لإظهار أدوات الرد للمالك فقط؛ الصلاحية يفرضها الخادم) */
+  ownerId?: string;
   /** روابط الصور مرتبة (الغلاف أولًا) */
   images?: string[];
 }

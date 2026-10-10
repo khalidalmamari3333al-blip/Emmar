@@ -32,6 +32,7 @@ import {
 } from '@/services/owner';
 import { supabaseNotifications } from '@/services/notifications';
 import { getPropertyById, searchProperties } from '@/services/properties';
+import { handleReport, listMaintenance, openMaintenance, propertyReviews, replyToReview, reportProperty, submitReview, updateMaintenance } from '@/services/postStay';
 import { completeMockCheckout, landlordReport, listPayments, startCheckout } from '@/services/payments';
 import { signPayload } from '../supabase/functions/payments/signing';
 import { cancelContract, contractForBooking, createContract, getContract, reviseContract, signContract } from '@/services/contracts';
@@ -234,8 +235,41 @@ test('owner builds a student residence, a student books, the owner approves', as
   const ledger = await listPayments('landlord');
   expect(ledger.ok && landlordReport(ledger.data.filter((p) => p.contractId === cid), '2026-10-01')).toMatchObject({ collected: 90, outstanding: 90 });
 
-  // طرف ثالث لا يرى العقد ولا الدفعات
+  // الصيانة أثناء الإقامة
+  mockCurrent = student.client;
+  const mreq = await openMaintenance({ bookingId: r!.id, category: 'ac', priority: 'urgent', title: 'المكيف لا يبرد' });
+  expect(mreq.ok).toBe(true);
+  expect(await updateMaintenance(mreq.ok ? mreq.data : '', 'resolved')).toMatchObject({ ok: false, code: 'invalid' });
+  mockCurrent = owner.client;
+  const inbox = await listMaintenance('landlord');
+  expect(inbox.ok && inbox.data.find((m) => m.title === 'المكيف لا يبرد')).toMatchObject({ priority: 'urgent', status: 'open' });
+  expect((await updateMaintenance(mreq.ok ? mreq.data : '', 'resolved', 'تم شحن الغاز')).ok).toBe(true);
+
+  // التقييم: مرفوض للإقامة الحالية، مقبول لإقامة سابقة منتهية
+  mockCurrent = student.client;
+  expect(await submitReview(r!.id, 5)).toMatchObject({ ok: false, code: 'not_completed' });
+  const { data: past } = await admin.from('bookings')
+    .insert({ user_id: student.user.id, bed_id: bedId, start_date: '2025-01-01', end_date: '2025-05-01', status: 'confirmed' })
+    .select('id').single().throwOnError();
+  expect((await submitReview(past!.id, 4, 'هادئ وقريب من الجامعة')).ok).toBe(true);
+  expect(await submitReview(past!.id, 5)).toMatchObject({ ok: false, code: 'duplicate' });
+  mockCurrent = createClient(URL, ANON, { auth: { persistSession: false } });
+  const pub = await propertyReviews(pid);
+  expect(pub.ok && pub.data).toEqual([expect.objectContaining({ rating: 4, reviewer: 'سالم', comment: 'هادئ وقريب من الجامعة', stayEnd: '2025-05-01' })]);
+  expect(JSON.stringify(pub)).not.toContain(student.user.id);
+  mockCurrent = owner.client;
+  expect((await replyToReview(pub.ok ? pub.data[0].id : '', 'شكرًا سالم')).ok).toBe(true);
+
+  // بلاغ على الإعلان
+  mockCurrent = student.client;
+  expect((await reportProperty(pid, 'wrong_info', 'السعر تغيّر')).ok).toBe(true);
+  expect(await reportProperty(pid, 'fraud')).toMatchObject({ ok: false, code: 'duplicate' });
+  expect(await handleReport('00000000-0000-4000-8000-000000000000', 'resolved')).toMatchObject({ ok: false, code: 'not_allowed' });
+
+  // طرف ثالث لا يرى العقد ولا الدفعات ولا الصيانة
   await signUp('outsider');
+  const peekM = await listMaintenance('tenant');
+  expect(peekM.ok && peekM.data).toEqual([]);
   expect(await getContract(cid)).toEqual({ ok: true, data: null });
   const peekPay = await listPayments('tenant');
   expect(peekPay.ok && peekPay.data).toEqual([]);

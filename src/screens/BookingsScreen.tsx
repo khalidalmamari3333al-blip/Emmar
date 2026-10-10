@@ -3,6 +3,7 @@ import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ContractLink } from '@/components/ContractLink';
+import { StayActions } from '@/components/postStay/StayActions';
 
 import { StatusNotice } from '@/components/StatusNotice';
 import { pick, useLocale } from '@/i18n';
@@ -147,6 +148,7 @@ function BookingCard({ booking: b, cancel, onChanged, onOpenProperty }: { bookin
         <Text style={styles.hold}>{t.bookings.pendingUntil(formatDate(b.expiresAt.slice(0, 10), locale))}</Text>
       )}
       {b.status === 'confirmed' && <ContractLink bookingId={b.id} />}
+      <StayActions booking={b} />
       {error && <Text style={styles.error}>{t.bookings.cancelFailed}</Text>}
       {canCancel(b) &&
         (confirming ? (

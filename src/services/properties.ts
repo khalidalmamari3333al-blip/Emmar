@@ -45,6 +45,7 @@ export interface PropertyRow {
   verification_expires_at?: string | null;
   verified_scope?: PropertySummary['verifiedScope'] | null;
   property_images?: { path: string; position: number; is_cover: boolean }[] | null;
+  owner_id?: string;
 }
 
 /** عدد النتائج في كل صفحة بحث (تحميل تدريجي). */
@@ -52,7 +53,7 @@ export const PAGE_SIZE = 20;
 
 const SUMMARY_COLUMNS =
   'id,kind,type,city,district_ar,district_en,title_ar,title_en,price_omr,price_period,bedrooms,area_sqm,cover_image_path,featured,furnished,amenities,utilities_included,near_landmarks,verification_status,verified_at,verification_expires_at,verified_scope';
-const DETAIL_COLUMNS = `${SUMMARY_COLUMNS},description_ar,description_en,deposit_omr,fees_omr,rules_ar,rules_en,cancellation_policy,property_images(path,position,is_cover)`;
+const DETAIL_COLUMNS = `${SUMMARY_COLUMNS},owner_id,description_ar,description_en,deposit_omr,fees_omr,rules_ar,rules_en,cancellation_policy,property_images(path,position,is_cover)`;
 
 const num = (v: number | string | null | undefined) => (v == null ? undefined : Number(v));
 
@@ -84,6 +85,7 @@ export function mapPropertyRow(row: PropertyRow, imageUrl?: (path: string) => st
     feesOmr: num(row.fees_omr),
     rules: row.rules_ar || row.rules_en ? { ar: row.rules_ar ?? '', en: row.rules_en ?? '' } : undefined,
     cancellationPolicy: row.cancellation_policy ?? undefined,
+    ownerId: row.owner_id,
     images:
       row.property_images && imageUrl
         ? [...row.property_images].sort((a, b) => Number(b.is_cover) - Number(a.is_cover) || a.position - b.position).map((i) => imageUrl(i.path))

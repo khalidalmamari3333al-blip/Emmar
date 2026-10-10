@@ -66,7 +66,7 @@ export const demoAuthBackend: AuthBackend & { signInAs(role: DemoRole): Promise<
 
 const published = () => demoState().properties.filter((p) => p.status === 'published');
 const toDetail = (p: DemoProperty): PropertyDetail => {
-  const { ownerId: _o, status: _s, updatedAt: _u, ...rest } = p;
+  const { status: _s, updatedAt: _u, gallery: _g, ...rest } = p;
   return rest;
 };
 

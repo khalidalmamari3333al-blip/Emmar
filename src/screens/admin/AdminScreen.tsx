@@ -19,6 +19,8 @@ import {
   Result,
   setPropertyStatus,
 } from '@/services/owner';
+import { handleReport, listReports, SResult } from '@/services/postStay';
+import type { PropertyReport, ReportStatus } from '@/types/postStay';
 import { colors, font, fonts, radius, spacing } from '@/theme';
 import type { ListingStatus } from '@/types/property';
 
@@ -29,6 +31,8 @@ export interface AdminScreenProps {
   setFeatured?: (id: string, featured: boolean) => Promise<Result>;
   setStatus?: (id: string, status: ListingStatus) => Promise<Result>;
   auditLog?: (entity?: string) => Promise<Result<AuditEntry[]>>;
+  listReports?: (status: ReportStatus | null) => Promise<SResult<PropertyReport[]>>;
+  handleReport?: (id: string, status: 'resolved' | 'dismissed', note?: string) => Promise<SResult>;
   onOpenProperty?: (id: string) => void;
   onBack?: () => void;
   debounceMs?: number;
@@ -39,15 +43,15 @@ const ROLES: AdminUser['role'][] = ['user', 'owner', 'verifier', 'support', 'adm
 export function AdminScreen(props: AdminScreenProps) {
   const { t } = useLocale();
   const auth = useAuth();
-  const [tab, setTab] = useState<'users' | 'properties' | 'audit'>('users');
+  const [tab, setTab] = useState<'users' | 'properties' | 'reports' | 'audit'>('users');
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScreenHeader title={t.admin.dashboard} onBack={props.onBack} backLabel={t.detail.back} />
       <Gate allowed={isAdminRole(auth.user)} loading={auth.status === 'loading'} message={t.admin.notAdmin}>
         <View style={{ paddingHorizontal: spacing.lg }}>
-          <ChipGroup testID="admin-tab" value={tab} onChange={(v) => v && setTab(v)} options={[{ value: 'users', label: t.admin.tabs.users }, { value: 'properties', label: t.admin.tabs.properties }, { value: 'audit', label: t.admin.tabs.audit }]} />
+          <ChipGroup testID="admin-tab" value={tab} onChange={(v) => v && setTab(v)} options={[{ value: 'users', label: t.admin.tabs.users }, { value: 'properties', label: t.admin.tabs.properties }, { value: 'reports', label: t.post.reportsTab }, { value: 'audit', label: t.admin.tabs.audit }]} />
         </View>
-        {tab === 'users' ? <UsersTab {...props} selfId={auth.user?.id} /> : tab === 'properties' ? <PropertiesTab {...props} /> : <AuditTab {...props} />}
+        {tab === 'users' ? <UsersTab {...props} selfId={auth.user?.id} /> : tab === 'properties' ? <PropertiesTab {...props} /> : tab === 'reports' ? <ReportsTab {...props} /> : <AuditTab {...props} />}
       </Gate>
     </SafeAreaView>
   );
@@ -171,6 +175,61 @@ function PropertiesTab({ listProperties = listAllProperties, setFeatured = admin
             {p.status !== 'published' && <Button small variant="secondary" label={t.admin.publish} onPress={() => run(() => setStatus(p.id, 'published'))} />}
             {p.status !== 'archived' && <Button small variant="danger" label={t.admin.archive} onPress={() => run(() => setStatus(p.id, 'archived'))} testID={`archive-${p.id}`} />}
           </View>
+        </View>
+      )}
+    />
+  );
+}
+
+const REPORT_FILTERS = ['open', 'resolved', 'dismissed'] as const;
+
+function ReportsTab({ listReports: load = listReports, handleReport: handle = handleReport }: AdminScreenProps) {
+  const { t, locale } = useLocale();
+  const p = t.post;
+  const [filter, setFilter] = useState<(typeof REPORT_FILTERS)[number]>('open');
+  const [res, setRes] = useState<{ filter: string; r: SResult<PropertyReport[]> } | null>(null);
+  const [reload, setReload] = useState(0);
+  const [notes, setNotes] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let active = true;
+    load(filter).then((r) => active && setRes({ filter, r }));
+    return () => {
+      active = false;
+    };
+  }, [filter, load, reload]);
+
+  const r = res?.filter === filter ? res.r : null;
+  const act = async (id: string, status: 'resolved' | 'dismissed') => {
+    await handle(id, status, notes[id]);
+    setReload((n) => n + 1);
+  };
+
+  return (
+    <FlatList
+      data={r?.ok ? r.data : []}
+      keyExtractor={(x) => x.id}
+      contentContainerStyle={styles.list}
+      keyboardShouldPersistTaps="handled"
+      ListHeaderComponent={<ChipGroup testID="report-filter" value={filter} onChange={(v) => v && setFilter(v)} options={REPORT_FILTERS.map((f) => ({ value: f, label: p.rStatus[f] }))} />}
+      ListEmptyComponent={r?.ok ? <Notice text={p.noReports} /> : null}
+      renderItem={({ item }) => (
+        <View style={styles.card} testID={`report-${item.id}`}>
+          <View style={styles.row}>
+            <Pill label={p.reasons[item.reason]} tone={item.reason === 'fraud' ? 'bad' : 'warn'} />
+            <Text style={styles.title}>{item.propertyTitle ? pick(item.propertyTitle, locale) : '—'}</Text>
+          </View>
+          {item.details ? <Text style={styles.meta}>{item.details}</Text> : null}
+          {item.adminNote ? <Text style={styles.meta}>{p.adminNote}: {item.adminNote}</Text> : null}
+          {item.status === 'open' && (
+            <>
+              <TextInput value={notes[item.id] ?? ''} onChangeText={(v) => setNotes((n) => ({ ...n, [item.id]: v }))} placeholder={p.adminNote} placeholderTextColor={colors.textMuted} style={styles.search} accessibilityLabel={p.adminNote} />
+              <View style={styles.row}>
+                <Button small label={p.resolve} onPress={() => act(item.id, 'resolved')} testID={`resolve-${item.id}`} />
+                <Button small variant="ghost" label={p.dismiss} onPress={() => act(item.id, 'dismissed')} testID={`dismiss-${item.id}`} />
+              </View>
+            </>
+          )}
         </View>
       )}
     />
