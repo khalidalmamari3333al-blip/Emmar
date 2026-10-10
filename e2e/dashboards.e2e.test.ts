@@ -32,6 +32,7 @@ import {
 } from '@/services/owner';
 import { supabaseNotifications } from '@/services/notifications';
 import { getPropertyById, searchProperties } from '@/services/properties';
+import { cancelContract, contractForBooking, createContract, getContract, reviseContract, signContract } from '@/services/contracts';
 import { decideRequest as decideVerification, getRequest, saveDeclared, sha256Hex, startRequest, submitRequest, verificationQueue } from '@/services/verification';
 
 const URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
@@ -158,6 +159,40 @@ test('owner builds a student residence, a student books, the owner approves', as
   // الطالب لا يستطيع استخدام صندوق طلبات المالك لرؤية الآخرين
   const peek = await listOwnerRequests();
   expect(peek.ok && peek.data).toEqual([]);
+
+  // العقد: المالك ينشئه من الحجز المؤكد، الطالب يوقّع ثم المالك (توقيع تجريبي)
+  expect((await createContract(r!.id)).ok).toBe(false); // الطالب ليس المالك
+  mockCurrent = owner.client;
+  const made = await createContract(r!.id);
+  expect(made.ok).toBe(true);
+  const cid = made.ok ? made.data : '';
+  expect(await createContract(r!.id)).toMatchObject({ ok: false, code: 'already_exists' });
+  expect(await reviseContract(cid)).toMatchObject({ ok: false, code: 'unchanged' });
+  const asOwner = await getContract(cid);
+  const c1 = asOwner.ok ? asOwner.data! : null;
+  expect(c1!.versions[0].bodyAr).toContain('سالم البلوشي');
+  expect(c1!.versions[0].bodyAr).toContain('من 2026-11-01 إلى 2027-03-01 (4 شهر)');
+  expect(await signContract(c1!)).toMatchObject({ ok: false, code: 'not_your_turn' });
+
+  mockCurrent = student.client;
+  expect((await contractForBooking(r!.id)).ok && (await contractForBooking(r!.id))).toEqual({ ok: true, data: cid });
+  const asTenant = await getContract(cid);
+  // البصمة المحسوبة في التطبيق (JS) تطابق بصمة قاعدة البيانات (PostgreSQL) — وإلا يرفض الخادم
+  expect(await signContract(asTenant.ok ? asTenant.data! : c1!)).toEqual({ ok: true, data: 'pending_landlord' });
+
+  mockCurrent = owner.client;
+  const again = await getContract(cid);
+  expect(await signContract(again.ok ? again.data! : c1!)).toEqual({ ok: true, data: 'completed' });
+  const done = await getContract(cid);
+  expect(done.ok && done.data).toMatchObject({ status: 'completed', finalSha256: c1!.versions[0].sha256 });
+  expect(done.ok && done.data!.signatures.map((x) => [x.role, x.isMock, x.provider])).toEqual(expect.arrayContaining([['tenant', true, 'mock_sign'], ['landlord', true, 'mock_sign']]));
+  expect(await cancelContract(cid, 'تراجع')).toMatchObject({ ok: false, code: 'not_allowed' });
+  const tamper = await owner.client.from('contracts').update({ status: 'cancelled' }).eq('id', cid);
+  expect(tamper.error).toBeTruthy();
+
+  // طرف ثالث لا يرى العقد
+  await signUp('outsider');
+  expect(await getContract(cid)).toEqual({ ok: true, data: null });
 });
 
 test('admin promotes a user and features a listing; others cannot', async () => {

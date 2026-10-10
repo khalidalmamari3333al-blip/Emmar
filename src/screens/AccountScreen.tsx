@@ -18,7 +18,8 @@ export function AccountScreen({
   onOpenOwner = () => {},
   onOpenAdmin = () => {},
   onOpenVerify = () => {},
-}: { onOpenOwner?: () => void; onOpenAdmin?: () => void; onOpenVerify?: () => void } = {}) {
+  onOpenContracts = () => {},
+}: { onOpenOwner?: () => void; onOpenAdmin?: () => void; onOpenVerify?: () => void; onOpenContracts?: () => void } = {}) {
   const { t, locale, setLocale } = useLocale();
   const auth = useAuth();
   return (
@@ -39,6 +40,7 @@ export function AccountScreen({
       {auth.status === 'signed_in' && auth.user && (
         <>
           {isOwnerRole(auth.user) && <Button label={t.owner.openDashboard} onPress={onOpenOwner} testID="open-owner" />}
+          <Button label={t.contracts.title} onPress={onOpenContracts} variant="secondary" testID="open-contracts" />
           {isStaffRole(auth.user) && <Button label={t.verification.openQueue} onPress={onOpenVerify} variant={isAdminRole(auth.user) ? 'secondary' : 'primary'} testID="open-verify" />}
           {isAdminRole(auth.user) && <Button label={t.admin.openDashboard} onPress={onOpenAdmin} variant="secondary" testID="open-admin" />}
           <ProfileCard key={auth.user.id} />

@@ -424,4 +424,51 @@ reset role;
 select pg_temp.check((select count(*) from public.audit_logs where action in ('verification.approved', 'verification.rejected', 'verification.needs_info', 'verification.submitted')) >= 6, 'every verification step is audited');
 select pg_temp.check((select count(*) from public.audit_logs where action = 'property.reverification') = 1, 'substantive edits are audited');
 
+-- ===== 14. العقود والتوقيع (تجريبي) =====
+\echo '--- contracts'
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e1');
+insert into public.bookings (id, user_id, bed_id, start_date, end_date)
+select '00000000-0000-4000-8000-0000000000d7', auth.uid(), bed1, '2028-01-01', '2028-05-01' from t_ids;
+select pg_temp.expect_error($$select public.create_contract('00000000-0000-4000-8000-0000000000d7')$$, '42501', 'a tenant cannot create the contract');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-00000000d001');
+select pg_temp.expect_error($$select public.create_contract('00000000-0000-4000-8000-0000000000d7')$$, '23514', 'no contract for an unconfirmed booking');
+update public.bookings set status = 'confirmed' where id = '00000000-0000-4000-8000-0000000000d7';
+create temp table t_c as select public.create_contract('00000000-0000-4000-8000-0000000000d7') as id;
+grant select on t_c to authenticated, anon;
+select pg_temp.check((select body_ar like '%2028-01-01%' and body_ar like '%{{%' = false and body_en like '%4 months%' and body_ar like '%سياسة الإلغاء: متوسطة%' from public.contract_versions where contract_id = (select id from t_c)), 'contract text is filled from the real booking (no leftover placeholders)');
+select pg_temp.check((select sha256 = public.contract_body_sha(body_ar, body_en) from public.contract_versions where contract_id = (select id from t_c)), 'each version stores its SHA-256 fingerprint');
+select pg_temp.expect_error($$select public.create_contract('00000000-0000-4000-8000-0000000000d7')$$, '23505', 'one contract per booking');
+select pg_temp.expect_error($$insert into public.signatures (contract_id, version_no, signer_id, role, signed_sha256) select id, 1, auth.uid(), 'landlord', repeat('a', 64) from t_c$$, '42501', 'signatures cannot be inserted directly');
+select pg_temp.expect_error($$update public.contract_versions set body_ar = 'معدل' where contract_id = (select id from t_c)$$, '42501', 'contract versions cannot be edited by clients');
+select pg_temp.expect_error($$select public.sign_contract((select id from t_c), (select sha256 from public.contract_versions where contract_id = (select id from t_c)))$$, '23514', 'the landlord cannot sign before the tenant');
+select pg_temp.expect_error($$select public.revise_contract((select id from t_c))$$, '23514', 'a revision must change the text');
+update public.properties set deposit_omr = 60 where id = (select property_id from public.contracts where id = (select id from t_c));
+select pg_temp.check(public.revise_contract((select id from t_c), 'تحديث التأمين') = 2, 'landlord issues a new version (deposit changed) before anyone signs');
+select pg_temp.check((select body_ar like '%60 ر.ع%' from public.contract_versions where contract_id = (select id from t_c) and version_no = 2), 'the new version reflects the change');
+reset role;
+
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e3');
+select pg_temp.check((select count(*) from public.contracts) = 0 and (select count(*) from public.contract_versions) = 0, 'third parties cannot see contracts');
+select pg_temp.expect_error($$select public.sign_contract((select id from t_c), repeat('a', 64))$$, '42501', 'a third party cannot sign');
+reset role;
+
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e1');
+select pg_temp.expect_error($$select public.sign_contract((select id from t_c), (select sha256 from public.contract_versions where contract_id = (select id from t_c) and version_no = 1))$$, '23514', 'signing an outdated version is rejected');
+select pg_temp.expect_error($$select public.sign_contract((select id from t_c), repeat('0', 64))$$, '23514', 'signing with a wrong fingerprint is rejected');
+select pg_temp.check(public.sign_contract((select id from t_c), (select sha256 from public.contract_versions where contract_id = (select id from t_c) and version_no = 2)) = 'pending_landlord', 'tenant signs the current version');
+reset role;
+
+select pg_temp.as_user('00000000-0000-4000-8000-00000000d001');
+select pg_temp.expect_error($$select public.revise_contract((select id from t_c))$$, '23514', 'a signed contract cannot be revised');
+select pg_temp.check(public.sign_contract((select id from t_c), (select sha256 from public.contract_versions where contract_id = (select id from t_c) and version_no = 2)) = 'completed', 'landlord countersigns and the contract completes');
+select pg_temp.check((select c.final_sha256 = v.sha256 from public.contracts c join public.contract_versions v on v.contract_id = c.id and v.version_no = c.current_version where c.id = (select id from t_c)), 'final fingerprint equals the signed version');
+select pg_temp.check((select bool_and(is_mock and provider = 'mock_sign') and count(*) = 2 from public.signatures where contract_id = (select id from t_c)), 'both signatures are recorded and flagged as mock');
+select pg_temp.expect_error($$select public.cancel_contract((select id from t_c), 'تراجع')$$, '42501', 'a completed contract cannot be cancelled');
+reset role;
+-- حتى المالك الأعلى لقاعدة البيانات لا يستطيع تعديل العقد المكتمل أو حذفه
+select pg_temp.expect_error($$update public.contracts set status = 'cancelled' where id = (select id from t_c)$$, '42501', 'a completed contract is frozen even for the database owner');
+select pg_temp.expect_error($$delete from public.contract_versions where contract_id = (select id from t_c)$$, '42501', 'contract versions can never be deleted');
+select pg_temp.check((select count(*) from public.audit_logs where entity = 'contract') = 4, 'contract steps are audited (created, revised, 2 signatures)');
+
 \echo 'ALL DATABASE TESTS PASSED'

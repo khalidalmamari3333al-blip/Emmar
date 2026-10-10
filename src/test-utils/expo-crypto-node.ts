@@ -1,4 +1,4 @@
-// بديل expo-crypto في بيئة Node للاختبارات الشاملة فقط (نفس الواجهة المستخدمة في التطبيق).
+// بديل expo-crypto في بيئة Node للاختبارات فقط (jest + e2e) (نفس الواجهة المستخدمة في التطبيق).
 import { webcrypto } from 'node:crypto';
 
 export enum CryptoDigestAlgorithm {

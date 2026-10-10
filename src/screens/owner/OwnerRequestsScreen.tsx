@@ -9,6 +9,7 @@ import { isOwnerRole, useAuth } from '@/lib/auth';
 import { ltr } from '@/lib/bidi';
 import { formatDate } from '@/lib/dates';
 import { BookingStatus } from '@/services/bookings';
+import { ContractLink } from '@/components/ContractLink';
 import { decideRequest, listOwnerRequests, OwnerRequest, Result, whatsappLink } from '@/services/owner';
 import { formatPrice } from '@/services/properties';
 import { colors, font, fonts, radius, shadow, spacing } from '@/theme';
@@ -124,6 +125,7 @@ function RequestCard({ r, decide, openUrl, onChanged }: { r: OwnerRequest; decid
           <Button label={t.requests.reject} onPress={() => run('rejected')} disabled={busy} variant="danger" style={{ flex: 1 }} testID={`reject-${r.id}`} />
         </View>
       )}
+      {r.status === 'confirmed' && <ContractLink bookingId={r.id} canCreate />}
       {r.status === 'confirmed' && <Button label={t.requests.cancel} onPress={() => run('cancelled')} busy={busy} variant="danger" small />}
       {error && <Notice text={t.requests.actionFailed} tone="error" />}
     </View>
