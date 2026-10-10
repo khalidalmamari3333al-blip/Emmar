@@ -1,5 +1,5 @@
 import { parseNeeds, demoReply } from '@/demo/assistant';
-import { demoNotifications, demoOwner } from '@/demo/services';
+import { demoAdmin, demoNotifications, demoOwner } from '@/demo/services';
 import { bedIsFree, createBooking, decide, DEMO_USERS, demoState, resetDemo, setCurrentUser } from '@/demo/store';
 
 beforeEach(() => resetDemo());
@@ -80,5 +80,39 @@ describe('demo assistant', () => {
   it('says so when nothing matches, and asks when it knows nothing', () => {
     expect(demoReply([{ role: 'user', content: 'فيلا للبيع في صحار بأقل من 100' }], 'ar').properties).toEqual([]);
     expect(demoReply([{ role: 'user', content: 'مرحبا' }], 'ar').reply).toMatch(/أخبرني/);
+  });
+});
+
+describe('demo gallery and audit log', () => {
+  it('first photo becomes the cover; cover, reorder and delete stay consistent', () => {
+    setCurrentUser(DEMO_USERS.owner);
+    const a = demoOwner.addImage('mock-1', { uri: 'a.jpg' });
+    const b = demoOwner.addImage('mock-1', { uri: 'b.jpg' });
+    if (!a.ok || !b.ok) throw new Error('add failed');
+    expect(a.data.isCover).toBe(true);
+    demoOwner.setCover('mock-1', b.data.id);
+    const p = () => demoState().properties.find((x) => x.id === 'mock-1')!;
+    expect(p().imageUrl).toBe('b.jpg');
+    expect(p().images).toEqual(['b.jpg', 'a.jpg']);
+    demoOwner.removeImage('mock-1', b.data.id);
+    expect(p().imageUrl).toBe('a.jpg');
+    const left = demoOwner.listImages('mock-1');
+    expect(left.ok && left.data.map((i) => i.isCover)).toEqual([true]);
+  });
+
+  it('other users cannot manage images', () => {
+    setCurrentUser(DEMO_USERS.tenant);
+    expect(demoOwner.addImage('mock-1', { uri: 'x.jpg' })).toMatchObject({ ok: false, code: 'not_allowed' });
+  });
+
+  it('records sensitive actions, readable by admins only', () => {
+    setCurrentUser(DEMO_USERS.admin);
+    demoAdmin.setRole('demo-reem', 'owner');
+    demoOwner.setStatus('mock-1', 'archived');
+    const log = demoAdmin.auditLog();
+    expect(log.ok && log.data.map((e) => e.action)).toEqual(['property.status', 'role.changed']);
+    expect(log.ok && log.data[1].actorName).toBe('مدير المنصة');
+    setCurrentUser(DEMO_USERS.owner);
+    expect(demoAdmin.auditLog()).toMatchObject({ ok: false, code: 'not_allowed' });
   });
 });

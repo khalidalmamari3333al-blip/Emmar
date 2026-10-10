@@ -50,4 +50,18 @@ describe('AdminScreen', () => {
     expect(setStatus).toHaveBeenCalledWith('p1', 'archived');
     await waitFor(() => expect(listProperties.mock.calls.length).toBeGreaterThanOrEqual(3));
   });
+
+  it('shows the read-only audit log with actor names and filters by entity', async () => {
+    const auditLog = jest.fn(async (entity?: string) => ({
+      ok: true as const,
+      data: [{ id: 7, actorId: ADMIN.id, actorName: 'مدير', action: 'role.changed', entity: 'profile', entityId: 'u2', details: { from: 'user', to: 'owner' }, createdAt: '2026-10-01T10:00:00Z' }].filter((e) => !entity || e.entity === entity),
+    }));
+    await wrap({ auditLog });
+    await fireEvent.press(await screen.findByText(t.admin.tabs.audit));
+    expect(await screen.findByText(t.extras.audit.actions['role.changed'])).toBeTruthy();
+    expect(screen.getByText(/مدير ·/)).toBeTruthy();
+    await fireEvent.press(screen.getByText(t.extras.audit.entities.booking));
+    expect(auditLog).toHaveBeenLastCalledWith('booking');
+    expect(await screen.findByText(t.extras.audit.empty)).toBeTruthy();
+  });
 });

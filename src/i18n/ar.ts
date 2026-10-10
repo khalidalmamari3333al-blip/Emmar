@@ -81,7 +81,27 @@ export const ar: Strings = {
     results: (n) => (n === 0 ? 'لا نتائج' : n === 1 ? 'نتيجة واحدة' : n === 2 ? 'نتيجتان' : n <= 10 ? `${n} نتائج` : `${n} نتيجة`),
     empty: 'لا توجد عقارات تطابق بحثك. جرّب تخفيف الفلاتر.',
   },
-  types: { apartment: 'شقة', studio: 'استوديو', villa: 'فيلا', land: 'أرض', student_housing: 'سكن طلابي' },
+  types: { apartment: 'شقة', studio: 'استوديو', room: 'غرفة', villa: 'فيلا', house: 'بيت', building: 'مبنى سكني', land: 'أرض', student_housing: 'سكن طلابي' },
+  features: {
+    amenities: {
+      wifi: 'إنترنت', ac: 'تكييف', kitchen: 'مطبخ', parking: 'موقف سيارات', laundry: 'غسيل ملابس', security: 'أمن وحراسة',
+      elevator: 'مصعد', cleaning: 'تنظيف', gym: 'نادٍ رياضي', pool: 'مسبح', study_room: 'غرفة مذاكرة', prayer_room: 'مصلى',
+    },
+    utilities: { electricity: 'الكهرباء', water: 'الماء', internet: 'الإنترنت', gas: 'الغاز' },
+    landmarks: {
+      sohar_university: 'جامعة صحار', utas_sohar: 'جامعة التقنية بصحار', squ: 'جامعة السلطان قابوس', utas_muscat: 'جامعة التقنية بمسقط',
+      muscat_university: 'جامعة مسقط', sohar_port: 'ميناء صحار', city_center: 'وسط المدينة', beach: 'الشاطئ',
+    },
+    furnished: { unfurnished: 'غير مفروش', semi: 'مفروش جزئيًا', furnished: 'مفروش' },
+    cancellation: {
+      flexible: { title: 'مرنة', body: 'إلغاء مجاني حتى 7 أيام قبل الدخول.' },
+      moderate: { title: 'متوسطة', body: 'إلغاء مجاني حتى 14 يومًا قبل الدخول، وبعدها يُخصم جزء من التأمين.' },
+      strict: { title: 'صارمة', body: 'التأمين غير مسترد بعد تأكيد الحجز إلا لظرف مقبول.' },
+    },
+    sections: { amenities: 'المرافق', included: 'مشمول في الإيجار', notIncluded: 'غير مشمول', near: 'بالقرب من', costs: 'التكلفة المتوقعة', rules: 'شروط السكن', cancellation: 'سياسة الإلغاء', gallery: 'الصور' },
+    costs: { rent: 'الإيجار', deposit: 'التأمين (مسترد)', fees: 'رسوم لمرة واحدة', firstPayment: 'أول دفعة متوقعة', noExtra: 'لا رسوم إضافية معلنة', depositNote: 'يُسترد التأمين عند الخروج وفق حالة السكن والعقد.' },
+    filters: { furnishedOnly: 'مفروش فقط', amenities: 'المرافق', utilities: 'مشمول في الإيجار', near: 'قريب من' },
+  },
   detail: {
     notFound: 'لم يتم العثور على هذا العقار، ربما أُزيل أو لم يعد منشورًا.',
     description: 'الوصف',
@@ -234,7 +254,7 @@ export const ar: Strings = {
     dashboard: 'لوحة الإدارة',
     openDashboard: 'فتح لوحة الإدارة',
     notAdmin: 'هذه اللوحة للمديرين فقط.',
-    tabs: { users: 'المستخدمون', properties: 'العقارات' },
+    tabs: { users: 'المستخدمون', properties: 'العقارات', audit: 'سجل التدقيق' },
     searchUsers: 'ابحث بالبريد أو الاسم',
     roles: { user: 'مستخدم', owner: 'مالك', admin: 'مدير' },
     you: 'أنت',
@@ -247,6 +267,20 @@ export const ar: Strings = {
     publish: 'نشر',
     archive: 'أرشفة',
     noProperties: 'لا توجد عقارات.',
+  },
+  extras: {
+    sections: { features: 'المرافق والخدمات', costs: 'التكاليف الإضافية', terms: 'الشروط والإلغاء' },
+    fields: { furnished: 'الأثاث', deposit: 'مبلغ التأمين (ر.ع)', fees: 'رسوم لمرة واحدة (ر.ع)', rulesAr: 'الشروط (عربي)', rulesEn: 'الشروط (إنجليزي)', amenities: 'المرافق', utilities: 'مشمول في الإيجار', landmarks: 'قريب من', cancellation: 'سياسة الإلغاء' },
+    gallery: {
+      add: 'إضافة صورة', cover: 'الغلاف', makeCover: 'اجعلها الغلاف', remove: 'حذف', moveEarlier: 'تقديم', moveLater: 'تأخير',
+      badType: 'الصيغة غير مدعومة. استخدم JPG أو PNG أو WebP.', tooLarge: 'حجم الصورة أكبر من 5 ميغابايت.', max: (n) => `الحد الأقصى ${n} صورة.`,
+      hint: 'JPG أو PNG أو WebP حتى 5 ميغابايت. الصورة الأولى تصبح الغلاف تلقائيًا.', empty: 'لا توجد صور بعد.',
+    },
+    audit: {
+      empty: 'لا توجد عمليات مسجلة.', all: 'الكل', system: 'النظام',
+      actions: { 'role.changed': 'تغيير دور', 'booking.created': 'حجز جديد', 'booking.status': 'تغيير حالة حجز', 'property.created': 'إضافة عقار', 'property.status': 'تغيير حالة عقار', 'property.featured': 'تمييز عقار' },
+      entities: { profile: 'مستخدم', booking: 'حجز', property: 'عقار' },
+    },
   },
   profile: {
     title: 'بياناتي',

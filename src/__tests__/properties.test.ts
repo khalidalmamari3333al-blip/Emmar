@@ -3,7 +3,9 @@ import {
   getFeaturedProperties,
   getPropertyById,
   LiveSource,
+  firstPayment,
   matchesFilters,
+  PAGE_SIZE,
   sanitizeQuery,
   searchProperties,
 } from '@/services/properties';
@@ -33,7 +35,7 @@ describe('data source selection', () => {
     live.search.mockResolvedValue([]);
     const filters = { city: 'muscat' as const, kind: 'rent' as const };
     expect(await searchProperties(filters, LIVE, live)).toEqual({ status: 'ok', source: 'live', data: [] });
-    expect(live.search).toHaveBeenCalledWith(filters);
+    expect(live.search).toHaveBeenCalledWith(filters, 0);
   });
 
   it('reports live errors instead of hiding them', async () => {
@@ -69,6 +71,38 @@ describe('matchesFilters', () => {
     expect(ids({ query: 'الخوير' })).toEqual(['mock-4']);
     expect(ids({ query: 'VILLA' })).toEqual(['mock-3', 'mock-7', 'mock-11', 'mock-16']);
     expect(ids({ query: 'humbar' })).toEqual(['mock-2', 'mock-7']);
+  });
+});
+
+describe('new filters (amenities, included services, furnishing, landmarks)', () => {
+  const ids = (f: Parameters<typeof matchesFilters>[1]) => mockProperties.filter((p) => matchesFilters(p, f)).map((p) => p.id);
+
+  it('requires every selected amenity and included service', () => {
+    expect(ids({ amenities: ['wifi', 'study_room'] })).toEqual(['mock-2', 'mock-9', 'mock-15']);
+    expect(ids({ kind: 'student', utilities: ['internet', 'electricity'] })).toEqual(['mock-2', 'mock-9', 'mock-15']);
+  });
+
+  it('filters by furnishing and proximity to a landmark', () => {
+    expect(ids({ landmark: 'squ' })).toEqual(['mock-15']);
+    expect(ids({ furnishedOnly: true, city: 'muscat', kind: 'rent' })).toEqual(['mock-4', 'mock-10', 'mock-14']);
+  });
+});
+
+describe('pagination', () => {
+  it('returns pages of PAGE_SIZE and an empty page at the end', async () => {
+    const p0 = await searchProperties({}, MOCK, live, 0);
+    expect(p0.status === 'ok' && p0.data.length).toBe(16); // أقل من 20 ← نهاية النتائج
+    const p1 = await searchProperties({}, MOCK, live, 1);
+    expect(p1.status === 'ok' && p1.data).toEqual([]);
+    expect(PAGE_SIZE).toBe(20);
+  });
+});
+
+describe('firstPayment', () => {
+  it('adds one month of rent, the deposit and one-time fees', () => {
+    expect(firstPayment({ priceOmr: 55, pricePeriod: 'monthly', depositOmr: 55, feesOmr: 10 })).toBe(120);
+    expect(firstPayment({ priceOmr: 300, pricePeriod: 'monthly' })).toBe(300);
+    expect(firstPayment({ priceOmr: 90000, pricePeriod: 'total', depositOmr: 1 })).toBeUndefined();
   });
 });
 

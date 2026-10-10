@@ -1,9 +1,9 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ChipGroup } from '@/components/ChipGroup';
+import { ChipGroup, MultiChipGroup } from '@/components/ChipGroup';
 import { Button, Field, Gate, Notice, ScreenHeader, Section } from '@/components/ui';
 import { useLocale } from '@/i18n';
 import { isOwnerRole, useAuth } from '@/lib/auth';
@@ -20,18 +20,23 @@ import {
   uploadCover,
   validatePropertyInput,
 } from '@/services/owner';
-import { colors, radius, spacing } from '@/theme';
-import { City, ListingKind, ListingStatus, TYPES_BY_KIND } from '@/types/property';
+import { colors, font, fonts, radius, spacing } from '@/theme';
+import { AMENITIES, CancellationPolicy, City, Furnished, LANDMARKS, ListingKind, ListingStatus, TYPES_BY_KIND, UTILITIES } from '@/types/property';
+
+import { ImageManager, ImageServices, PickedImage } from './ImageManager';
 
 import { StructureEditor, StructureEditorProps } from './StructureEditor';
 
 const KINDS: ListingKind[] = ['rent', 'sale', 'student'];
 const CITIES: City[] = ['sohar', 'muscat'];
 const STATUSES: ListingStatus[] = ['draft', 'published', 'archived'];
+const FURNISHED: Furnished[] = ['unfurnished', 'semi', 'furnished'];
+const POLICIES: CancellationPolicy[] = ['flexible', 'moderate', 'strict'];
 
-async function pickFromLibrary(): Promise<ImageAsset | null> {
+async function pickFromLibrary(): Promise<PickedImage | null> {
   const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7, allowsEditing: true, aspect: [4, 3] });
-  return r.canceled || !r.assets[0] ? null : { uri: r.assets[0].uri, mimeType: r.assets[0].mimeType };
+  const a = r.canceled ? undefined : r.assets[0];
+  return a ? { uri: a.uri, mimeType: a.mimeType, fileSize: a.fileSize } : null;
 }
 
 export interface PropertyEditorProps {
@@ -40,7 +45,9 @@ export interface PropertyEditorProps {
   create?: (ownerId: string, input: PropertyInput) => Promise<Result<string>>;
   update?: (id: string, input: PropertyInput) => Promise<Result>;
   upload?: (id: string, asset: ImageAsset) => Promise<Result<string>>;
-  pickImage?: () => Promise<ImageAsset | null>;
+  pickImage?: () => Promise<PickedImage | null>;
+  /** إدارة الصور المتعددة؛ إن مُرِّر `upload` وحده يبقى رفع الغلاف المفرد (توافق). */
+  images?: ImageServices;
   structure?: Omit<StructureEditorProps, 'propertyId'>;
   onCreated?: (id: string) => void;
   onPreview?: (id: string) => void;
@@ -52,7 +59,8 @@ export function PropertyEditorScreen({
   load = getOwnerProperty,
   create = createProperty,
   update = updateProperty,
-  upload = uploadCover,
+  upload,
+  images,
   pickImage = pickFromLibrary,
   structure,
   onCreated = () => {},
@@ -115,7 +123,7 @@ export function PropertyEditorScreen({
     const asset = await pickImage();
     if (!asset) return;
     setUploading(true);
-    const r = await upload(propertyId, asset);
+    const r = await (upload ?? uploadCover)(propertyId, asset);
     setUploading(false);
     if (r.ok) setImageUrl(r.data);
     else setMessage({ text: t.owner.uploadFailed, tone: 'error' });
@@ -171,11 +179,52 @@ export function PropertyEditorScreen({
               <Field label={t.owner.fields.descriptionEn} value={input.descriptionEn} onChangeText={(v) => set('descriptionEn', v)} error={err('descriptionEn')} multiline maxLength={2000} />
             </Section>
 
+            <Section title={t.extras.sections.features}>
+              {input.kind !== 'sale' && (
+                <ChipGroup testID="edit-furnished" value={input.furnished} onChange={(v) => set('furnished', v ?? undefined)} options={FURNISHED.map((f) => ({ value: f, label: t.features.furnished[f] }))} />
+              )}
+              <Text style={styles.label}>{t.extras.fields.amenities}</Text>
+              <MultiChipGroup testID="edit-amenities" value={input.amenities} onChange={(v) => set('amenities', v)} options={AMENITIES.map((a) => ({ value: a, label: t.features.amenities[a] }))} />
+              {input.kind !== 'sale' && (
+                <>
+                  <Text style={styles.label}>{t.extras.fields.utilities}</Text>
+                  <MultiChipGroup testID="edit-utilities" value={input.utilities} onChange={(v) => set('utilities', v)} options={UTILITIES.map((u) => ({ value: u, label: t.features.utilities[u] }))} />
+                </>
+              )}
+              <Text style={styles.label}>{t.extras.fields.landmarks}</Text>
+              <MultiChipGroup testID="edit-landmarks" value={input.landmarks} onChange={(v) => set('landmarks', v)} options={LANDMARKS.map((l) => ({ value: l, label: t.features.landmarks[l] }))} />
+            </Section>
+
+            {input.kind !== 'sale' && (
+              <Section title={t.extras.sections.costs}>
+                <View style={styles.row}>
+                  <Field label={t.extras.fields.deposit} value={input.deposit} onChangeText={(v) => set('deposit', v)} error={err('deposit')} keyboardType="decimal-pad" testID="edit-deposit" />
+                  <Field label={t.extras.fields.fees} value={input.fees} onChangeText={(v) => set('fees', v)} error={err('fees')} keyboardType="decimal-pad" />
+                </View>
+              </Section>
+            )}
+
+            <Section title={t.extras.sections.terms}>
+              <Field label={t.extras.fields.rulesAr} value={input.rulesAr} onChangeText={(v) => set('rulesAr', v)} error={err('rulesAr')} multiline maxLength={2000} />
+              <Field label={t.extras.fields.rulesEn} value={input.rulesEn} onChangeText={(v) => set('rulesEn', v)} error={err('rulesEn')} multiline maxLength={2000} />
+              {input.kind !== 'sale' && (
+                <>
+                  <Text style={styles.label}>{t.extras.fields.cancellation}</Text>
+                  <ChipGroup value={input.cancellationPolicy} onChange={(v) => v && set('cancellationPolicy', v)} options={POLICIES.map((c) => ({ value: c, label: t.features.cancellation[c].title }))} />
+                  <Notice text={t.features.cancellation[input.cancellationPolicy].body} />
+                </>
+              )}
+            </Section>
+
             <Section title={t.owner.sections.photo}>
               {propertyId ? (
                 <>
                   {imageUrl && <Image source={{ uri: imageUrl }} style={styles.cover} resizeMode="cover" accessibilityIgnoresInvertColors />}
-                  <Button label={uploading ? t.owner.uploading : imageUrl ? t.owner.changePhoto : t.owner.pickPhoto} onPress={changePhoto} busy={uploading} variant="secondary" />
+                  {upload && !images ? (
+                    <Button label={uploading ? t.owner.uploading : imageUrl ? t.owner.changePhoto : t.owner.pickPhoto} onPress={changePhoto} busy={uploading} variant="secondary" />
+                  ) : (
+                    <ImageManager propertyId={propertyId} services={images} pickImage={pickImage} onCoverChange={setImageUrl} />
+                  )}
                 </>
               ) : (
                 <Notice text={t.owner.photoAfterSave} />
@@ -207,5 +256,6 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl * 2 },
   row: { flexDirection: 'row', gap: spacing.sm },
+  label: { fontFamily: fonts.bodySemi, fontSize: font.small, color: colors.textMuted },
   cover: { width: '100%', height: 180, borderRadius: radius.md, borderTopLeftRadius: 120, borderTopRightRadius: 120 },
 });

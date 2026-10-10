@@ -58,7 +58,17 @@ export interface Strings {
     results: (n: number) => string;
     empty: string;
   };
-  types: Record<'apartment' | 'studio' | 'villa' | 'land' | 'student_housing', string>;
+  types: Record<import('@/types/property').PropertyType, string>;
+  features: {
+    amenities: Record<import('@/types/property').Amenity, string>;
+    utilities: Record<import('@/types/property').Utility, string>;
+    landmarks: Record<import('@/types/property').Landmark, string>;
+    furnished: Record<import('@/types/property').Furnished, string>;
+    cancellation: Record<import('@/types/property').CancellationPolicy, { title: string; body: string }>;
+    sections: { amenities: string; included: string; notIncluded: string; near: string; costs: string; rules: string; cancellation: string; gallery: string };
+    costs: { rent: string; deposit: string; fees: string; firstPayment: string; noExtra: string; depositNote: string };
+    filters: { furnishedOnly: string; amenities: string; utilities: string; near: string };
+  };
   detail: {
     notFound: string;
     description: string;
@@ -198,7 +208,7 @@ export interface Strings {
     dashboard: string;
     openDashboard: string;
     notAdmin: string;
-    tabs: { users: string; properties: string };
+    tabs: { users: string; properties: string; audit: string };
     searchUsers: string;
     roles: Record<'user' | 'owner' | 'admin', string>;
     you: string;
@@ -211,6 +221,12 @@ export interface Strings {
     publish: string;
     archive: string;
     noProperties: string;
+  };
+  extras: {
+    sections: { features: string; costs: string; terms: string };
+    fields: { furnished: string; deposit: string; fees: string; rulesAr: string; rulesEn: string; amenities: string; utilities: string; landmarks: string; cancellation: string };
+    gallery: { add: string; cover: string; makeCover: string; remove: string; moveEarlier: string; moveLater: string; badType: string; tooLarge: string; max: (n: number) => string; hint: string; empty: string };
+    audit: { empty: string; all: string; system: string; actions: Record<string, string>; entities: Record<string, string> };
   };
   profile: {
     title: string;

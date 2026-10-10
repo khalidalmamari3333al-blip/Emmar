@@ -6,9 +6,9 @@ import { CrenellationDivider } from '@/components/omani/CrenellationDivider';
 import { PropertyIllustration } from '@/components/omani/PropertyIllustration';
 import { MockBadge, StatusNotice } from '@/components/StatusNotice';
 import { pick, useLocale } from '@/i18n';
-import { DataResult, formatPrice, getPropertyById } from '@/services/properties';
+import { DataResult, firstPayment, formatPrice, getPropertyById } from '@/services/properties';
 import { colors, font, fonts, radius, shadow, spacing } from '@/theme';
-import type { PropertyDetail } from '@/types/property';
+import { UTILITIES, type PropertyDetail } from '@/types/property';
 import { FadeIn } from '@/components/motion';
 
 export interface PropertyDetailScreenProps {
@@ -54,7 +54,13 @@ export function PropertyDetailScreen({ id, load = getPropertyById, onBack, onCho
               </View>
             )}
           </View>
-
+          {p.images && p.images.length > 1 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.gallery} accessibilityLabel={t.features.sections.gallery} testID="gallery">
+              {p.images.map((uri, i) => (
+                <Image key={uri + i} source={{ uri }} style={styles.thumb} resizeMode="cover" accessibilityIgnoresInvertColors />
+              ))}
+            </ScrollView>
+          )}
           </FadeIn>
           <FadeIn delay={120} style={styles.body}>
             {result?.status === 'ok' && result.source === 'mock' && <MockBadge />}
@@ -79,10 +85,68 @@ export function PropertyDetailScreen({ id, load = getPropertyById, onBack, onCho
               <Fact label={t.detail.location} value={`${t.cities[p.city]}${locale === 'ar' ? '، ' : ', '}${pick(p.district, locale)}`} />
               {p.bedrooms != null && <Fact label={t.detail.bedrooms} value={String(p.bedrooms)} />}
               {p.areaSqm != null && <Fact label={t.detail.area} value={`${p.areaSqm} ${t.sqm}`} />}
+              {p.furnished && <Fact label={t.extras.fields.furnished} value={t.features.furnished[p.furnished]} />}
             </View>
 
             <Text style={styles.h2}>{t.detail.description}</Text>
             <Text style={styles.description}>{pick(p.description, locale) || t.detail.noDescription}</Text>
+
+            {p.pricePeriod === 'monthly' && (
+              <>
+                <Text style={styles.h2}>{t.features.sections.costs}</Text>
+                <View style={styles.card} testID="costs">
+                  <CostRow label={t.features.costs.rent} value={`${formatPrice(p)} ${t.currency}`} />
+                  {!!p.depositOmr && <CostRow label={t.features.costs.deposit} value={`${p.depositOmr} ${t.currency}`} />}
+                  {!!p.feesOmr && <CostRow label={t.features.costs.fees} value={`${p.feesOmr} ${t.currency}`} />}
+                  <CostRow strong label={t.features.costs.firstPayment} value={`${firstPayment(p)} ${t.currency}`} />
+                  <Text style={styles.note}>{p.depositOmr || p.feesOmr ? t.features.costs.depositNote : t.features.costs.noExtra}</Text>
+                </View>
+              </>
+            )}
+
+            {!!p.amenities?.length && (
+              <>
+                <Text style={styles.h2}>{t.features.sections.amenities}</Text>
+                <Tags items={p.amenities.map((a) => t.features.amenities[a])} />
+              </>
+            )}
+
+            {p.pricePeriod === 'monthly' && (
+              <>
+                <Text style={styles.h2}>{t.features.sections.included}</Text>
+                <Tags items={(p.utilities ?? []).map((u) => `✓ ${t.features.utilities[u]}`)} />
+                {UTILITIES.some((u) => !p.utilities?.includes(u)) && (
+                  <>
+                    <Text style={styles.sub}>{t.features.sections.notIncluded}</Text>
+                    <Tags muted items={UTILITIES.filter((u) => !p.utilities?.includes(u)).map((u) => `✕ ${t.features.utilities[u]}`)} />
+                  </>
+                )}
+              </>
+            )}
+
+            {!!p.nearLandmarks?.length && (
+              <>
+                <Text style={styles.h2}>{t.features.sections.near}</Text>
+                <Tags items={p.nearLandmarks.map((l) => t.features.landmarks[l])} />
+              </>
+            )}
+
+            {p.rules && pick(p.rules, locale) ? (
+              <>
+                <Text style={styles.h2}>{t.features.sections.rules}</Text>
+                <Text style={styles.description}>{pick(p.rules, locale)}</Text>
+              </>
+            ) : null}
+
+            {p.cancellationPolicy && (
+              <>
+                <Text style={styles.h2}>{t.features.sections.cancellation}</Text>
+                <View style={styles.card}>
+                  <Text style={styles.factValue}>{t.features.cancellation[p.cancellationPolicy].title}</Text>
+                  <Text style={styles.note}>{t.features.cancellation[p.cancellationPolicy].body}</Text>
+                </View>
+              </>
+            )}
 
             {/* طلب الحجز لغير السكن الطلابي لم يُنجز بعد — نوضح ذلك بدل زر شكلي */}
             {p.kind === 'student' ? (
@@ -96,6 +160,27 @@ export function PropertyDetailScreen({ id, load = getPropertyById, onBack, onCho
         </ScrollView>
       )}
     </SafeAreaView>
+  );
+}
+
+function CostRow({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <View style={styles.costRow}>
+      <Text style={[styles.costLabel, strong && styles.strong]}>{label}</Text>
+      <Text style={[styles.costValue, strong && styles.strong]}>{value}</Text>
+    </View>
+  );
+}
+
+function Tags({ items, muted }: { items: string[]; muted?: boolean }) {
+  return (
+    <View style={styles.tags}>
+      {items.map((s) => (
+        <Text key={s} style={[styles.tag, muted && styles.tagMuted]}>
+          {s}
+        </Text>
+      ))}
+    </View>
   );
 }
 
@@ -138,5 +223,17 @@ const styles = StyleSheet.create({
   description: { fontFamily: fonts.body, fontSize: font.body, color: colors.text, lineHeight: 24 },
   cta: { marginTop: spacing.lg, borderRadius: radius.md, padding: spacing.md, alignItems: 'center', backgroundColor: colors.primary, ...shadow },
   ctaText: { color: colors.white, fontFamily: fonts.bodyBold, fontSize: font.body },
+  gallery: { gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
+  thumb: { width: 96, height: 72, borderRadius: radius.sm, backgroundColor: colors.sandLight },
+  card: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, gap: spacing.xs },
+  costRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  costLabel: { fontFamily: fonts.body, fontSize: font.body, color: colors.textMuted },
+  costValue: { fontFamily: fonts.bodySemi, fontSize: font.body, color: colors.text },
+  strong: { fontFamily: fonts.bodyBold, color: colors.primary },
+  note: { fontFamily: fonts.body, fontSize: font.small, color: colors.textMuted, marginTop: spacing.xs },
+  sub: { fontFamily: fonts.bodySemi, fontSize: font.small, color: colors.textMuted, marginTop: spacing.sm, marginBottom: spacing.xs },
+  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  tag: { fontFamily: fonts.body, fontSize: font.small, color: colors.text, backgroundColor: colors.sandLight, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 4, overflow: 'hidden' },
+  tagMuted: { color: colors.textMuted, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   soon: { marginTop: spacing.lg, color: colors.textMuted, fontFamily: fonts.body, fontSize: font.small, textAlign: 'center' },
 });

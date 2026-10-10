@@ -8,7 +8,9 @@ import { pick, useLocale } from '@/i18n';
 import { isAdminRole, useAuth } from '@/lib/auth';
 import { ltr } from '@/lib/bidi';
 import {
+  adminAuditLog,
   adminListUsers,
+  AuditEntry,
   adminSetFeatured,
   adminSetRole,
   AdminUser,
@@ -26,6 +28,7 @@ export interface AdminScreenProps {
   listProperties?: (status?: ListingStatus) => Promise<Result<OwnerProperty[]>>;
   setFeatured?: (id: string, featured: boolean) => Promise<Result>;
   setStatus?: (id: string, status: ListingStatus) => Promise<Result>;
+  auditLog?: (entity?: string) => Promise<Result<AuditEntry[]>>;
   onOpenProperty?: (id: string) => void;
   onBack?: () => void;
   debounceMs?: number;
@@ -36,15 +39,15 @@ const ROLES: AdminUser['role'][] = ['user', 'owner', 'admin'];
 export function AdminScreen(props: AdminScreenProps) {
   const { t } = useLocale();
   const auth = useAuth();
-  const [tab, setTab] = useState<'users' | 'properties'>('users');
+  const [tab, setTab] = useState<'users' | 'properties' | 'audit'>('users');
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScreenHeader title={t.admin.dashboard} onBack={props.onBack} backLabel={t.detail.back} />
       <Gate allowed={isAdminRole(auth.user)} loading={auth.status === 'loading'} message={t.admin.notAdmin}>
         <View style={{ paddingHorizontal: spacing.lg }}>
-          <ChipGroup testID="admin-tab" value={tab} onChange={(v) => v && setTab(v)} options={[{ value: 'users', label: t.admin.tabs.users }, { value: 'properties', label: t.admin.tabs.properties }]} />
+          <ChipGroup testID="admin-tab" value={tab} onChange={(v) => v && setTab(v)} options={[{ value: 'users', label: t.admin.tabs.users }, { value: 'properties', label: t.admin.tabs.properties }, { value: 'audit', label: t.admin.tabs.audit }]} />
         </View>
-        {tab === 'users' ? <UsersTab {...props} selfId={auth.user?.id} /> : <PropertiesTab {...props} />}
+        {tab === 'users' ? <UsersTab {...props} selfId={auth.user?.id} /> : tab === 'properties' ? <PropertiesTab {...props} /> : <AuditTab {...props} />}
       </Gate>
     </SafeAreaView>
   );
@@ -168,6 +171,57 @@ function PropertiesTab({ listProperties = listAllProperties, setFeatured = admin
             {p.status !== 'published' && <Button small variant="secondary" label={t.admin.publish} onPress={() => run(() => setStatus(p.id, 'published'))} />}
             {p.status !== 'archived' && <Button small variant="danger" label={t.admin.archive} onPress={() => run(() => setStatus(p.id, 'archived'))} testID={`archive-${p.id}`} />}
           </View>
+        </View>
+      )}
+    />
+  );
+}
+
+const AUDIT_ENTITIES = ['profile', 'property', 'booking'] as const;
+
+/** سجل التدقيق: للقراءة فقط (لا يمكن تعديله أو حذفه حتى من المدير). */
+function AuditTab({ auditLog = adminAuditLog }: AdminScreenProps) {
+  const { t, locale } = useLocale();
+  const a = t.extras.audit;
+  const [entity, setEntity] = useState<(typeof AUDIT_ENTITIES)[number] | undefined>();
+  const [res, setRes] = useState<{ entity?: string; r: Result<AuditEntry[]> } | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    auditLog(entity).then((r) => active && setRes({ entity, r }));
+    return () => {
+      active = false;
+    };
+  }, [entity, auditLog]);
+
+  const r = res && res.entity === entity ? res.r : null;
+  const describe = (e: AuditEntry) =>
+    Object.entries(e.details)
+      .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : String(v)}`)
+      .join(' · ');
+
+  return (
+    <FlatList
+      data={r?.ok ? r.data : []}
+      keyExtractor={(e) => String(e.id)}
+      contentContainerStyle={styles.list}
+      ListHeaderComponent={
+        <View style={{ gap: spacing.sm }}>
+          <ChipGroup testID="audit-entity" value={entity} onChange={(v) => setEntity(v ?? undefined)} allLabel={a.all} options={AUDIT_ENTITIES.map((x) => ({ value: x, label: a.entities[x] }))} />
+          {r && !r.ok && <Notice text={r.code === 'not_allowed' ? t.admin.notAdmin : t.loadError} tone="error" />}
+        </View>
+      }
+      ListEmptyComponent={r?.ok ? <Notice text={a.empty} /> : null}
+      renderItem={({ item: e }) => (
+        <View style={styles.card} testID={`audit-${e.id}`}>
+          <View style={styles.row}>
+            <Pill label={a.entities[e.entity] ?? e.entity} />
+            <Text style={styles.title}>{a.actions[e.action] ?? e.action}</Text>
+          </View>
+          <Text style={styles.meta}>
+            {e.actorName ?? a.system} · {new Date(e.createdAt).toLocaleString(locale === 'ar' ? 'ar-OM' : 'en-GB')}
+          </Text>
+          {!!describe(e) && <Text style={styles.meta}>{ltr(describe(e))}</Text>}
         </View>
       )}
     />

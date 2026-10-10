@@ -6,7 +6,7 @@ import { readConfig } from '@/lib/config';
 import { getSupabase } from '@/lib/supabase';
 import type { BookingStatus } from '@/services/bookings';
 import { effectiveStatus } from '@/services/bookings';
-import { City, ListingKind, ListingStatus, PropertyType, TYPES_BY_KIND } from '@/types/property';
+import { Amenity, CancellationPolicy, City, Furnished, Landmark, ListingKind, ListingStatus, PropertyType, TYPES_BY_KIND, Utility } from '@/types/property';
 
 import { mapPropertyRow, PROPERTY_IMAGES_BUCKET, PropertyRow } from './properties';
 
@@ -56,6 +56,15 @@ export interface PropertyInput {
   bedrooms: string;
   area: string;
   status: ListingStatus;
+  furnished?: Furnished;
+  amenities: Amenity[];
+  utilities: Utility[];
+  landmarks: Landmark[];
+  deposit: string;
+  fees: string;
+  rulesAr: string;
+  rulesEn: string;
+  cancellationPolicy: CancellationPolicy;
 }
 
 export type FieldError = 'required' | 'too_short' | 'too_long' | 'invalid_number' | 'type_mismatch';
@@ -64,6 +73,7 @@ export type PropertyErrors = Partial<Record<keyof PropertyInput, FieldError>>;
 export const emptyPropertyInput = (): PropertyInput => ({
   kind: 'rent', type: 'apartment', city: 'sohar', districtAr: '', districtEn: '', titleAr: '', titleEn: '',
   descriptionAr: '', descriptionEn: '', price: '', bedrooms: '', area: '', status: 'draft',
+  amenities: [], utilities: [], landmarks: [], deposit: '', fees: '', rulesAr: '', rulesEn: '', cancellationPolicy: 'moderate',
 });
 
 /** يحوّل الأرقام العربية-الهندية ويزيل الفواصل. */
@@ -88,12 +98,18 @@ export function validatePropertyInput(i: PropertyInput): PropertyErrors {
   text('districtEn', 2, 60);
   if (i.descriptionAr.length > 2000) e.descriptionAr = 'too_long';
   if (i.descriptionEn.length > 2000) e.descriptionEn = 'too_long';
+  if (i.rulesAr.length > 2000) e.rulesAr = 'too_long';
+  if (i.rulesEn.length > 2000) e.rulesEn = 'too_long';
   if (!TYPES_BY_KIND[i.kind].includes(i.type)) e.type = 'type_mismatch';
 
   const price = toNumber(i.price);
   if (price === undefined) e.price = 'required';
   else if (Number.isNaN(price) || price < 0 || price > 100_000_000) e.price = 'invalid_number';
 
+  for (const k of ['deposit', 'fees'] as const) {
+    const n = toNumber(i[k]);
+    if (n !== undefined && (Number.isNaN(n) || n < 0 || n > 1_000_000)) e[k] = 'invalid_number';
+  }
   for (const k of ['bedrooms', 'area'] as const) {
     const n = toNumber(i[k]);
     if (n !== undefined && (Number.isNaN(n) || n < 0 || (k === 'bedrooms' && !Number.isInteger(n)) || (k === 'area' && n === 0)))
@@ -121,6 +137,15 @@ export function toPropertyRow(i: PropertyInput) {
     bedrooms: i.kind === 'student' || bedrooms === undefined ? null : bedrooms,
     area_sqm: area ?? null,
     status: i.status,
+    furnished: i.furnished ?? null,
+    amenities: i.amenities,
+    utilities_included: i.kind === 'sale' ? [] : i.utilities,
+    near_landmarks: i.landmarks,
+    deposit_omr: i.kind === 'sale' ? null : (toNumber(i.deposit) ?? null),
+    fees_omr: i.kind === 'sale' ? null : (toNumber(i.fees) ?? null),
+    rules_ar: i.rulesAr.trim() || null,
+    rules_en: i.rulesEn.trim() || null,
+    cancellation_policy: i.cancellationPolicy,
   };
 }
 
@@ -139,7 +164,7 @@ export interface OwnerProperty {
 type OwnerRow = PropertyRow & { status: ListingStatus; updated_at: string; description_ar: string | null; description_en: string | null };
 
 const OWNER_COLUMNS =
-  'id,kind,type,city,district_ar,district_en,title_ar,title_en,description_ar,description_en,price_omr,price_period,bedrooms,area_sqm,cover_image_path,featured,status,updated_at';
+  'id,kind,type,city,district_ar,district_en,title_ar,title_en,description_ar,description_en,price_omr,price_period,bedrooms,area_sqm,cover_image_path,featured,status,updated_at,furnished,amenities,utilities_included,near_landmarks,deposit_omr,fees_omr,rules_ar,rules_en,cancellation_policy';
 
 export function mapOwnerRow(r: OwnerRow, imageUrl?: (p: string) => string): OwnerProperty {
   const p = mapPropertyRow(r, imageUrl);
@@ -158,6 +183,9 @@ export function mapOwnerRow(r: OwnerRow, imageUrl?: (p: string) => string): Owne
       descriptionAr: r.description_ar ?? '', descriptionEn: r.description_en ?? '',
       price: String(Number(r.price_omr)), bedrooms: r.bedrooms == null ? '' : String(r.bedrooms),
       area: r.area_sqm == null ? '' : String(Number(r.area_sqm)), status: r.status,
+      furnished: p.furnished, amenities: p.amenities ?? [], utilities: p.utilities ?? [], landmarks: p.nearLandmarks ?? [],
+      deposit: p.depositOmr == null ? '' : String(p.depositOmr), fees: p.feesOmr == null ? '' : String(p.feesOmr),
+      rulesAr: r.rules_ar ?? '', rulesEn: r.rules_en ?? '', cancellationPolicy: r.cancellation_policy ?? 'moderate',
     },
   };
 }
@@ -240,6 +268,97 @@ export function uploadCover(propertyId: string, asset: ImageAsset) {
     if (error) return fail(error);
     if (!data?.length) return { ok: false, code: 'not_allowed' };
     return { ok: true, data: publicUrl(sb)(path) };
+  });
+}
+
+// ---------- صور متعددة (property_images) ----------
+
+export interface OwnerImage {
+  id: string;
+  url: string;
+  position: number;
+  isCover: boolean;
+}
+
+export const IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+export const MAX_IMAGES = 20;
+
+/** نفس قيود قاعدة البيانات (property_images_mime / size) قبل الرفع، لرسالة واضحة للمالك. */
+export function validateImage(asset: ImageAsset & { fileSize?: number | null }): 'bad_type' | 'too_large' | null {
+  const mime = (asset.mimeType || 'image/jpeg').toLowerCase();
+  if (!(IMAGE_MIME_TYPES as readonly string[]).includes(mime)) return 'bad_type';
+  if (asset.fileSize != null && asset.fileSize > MAX_IMAGE_BYTES) return 'too_large';
+  return null;
+}
+
+type ImageRow = { id: string; path: string; position: number; is_cover: boolean };
+
+export function listImages(propertyId: string) {
+  if (demo()) return Promise.resolve(demoOwner.listImages(propertyId));
+  return guard<OwnerImage[]>(async (sb) => {
+    const { data, error } = await sb.from('property_images').select('id,path,position,is_cover').eq('property_id', propertyId).order('position');
+    if (error) return fail(error);
+    const rows = (data ?? []) as ImageRow[];
+    const hasCover = rows.some((r) => r.is_cover); // بلا علامة: الأولى هي الغلاف (كما في sync_cover_image)
+    return { ok: true, data: rows.map((r, i) => ({ id: r.id, url: publicUrl(sb)(r.path), position: r.position, isCover: r.is_cover || (!hasCover && i === 0) })) };
+  });
+}
+
+/** يرفع صورة إلى Storage ثم يسجلها في property_images (الخادم يتحقق من النوع والحجم والمسار والملكية). */
+export function addImage(propertyId: string, asset: ImageAsset & { fileSize?: number | null }, position: number) {
+  const invalid = validateImage(asset);
+  if (invalid) return Promise.resolve<Result<OwnerImage>>({ ok: false, code: 'error', message: invalid });
+  if (demo()) return Promise.resolve(demoOwner.addImage(propertyId, asset));
+  return guard<OwnerImage>(async (sb) => {
+    const contentType = (asset.mimeType || 'image/jpeg').toLowerCase();
+    const body = await (await fetch(asset.uri)).arrayBuffer();
+    if (body.byteLength > MAX_IMAGE_BYTES) return { ok: false, code: 'error', message: 'too_large' };
+    const ext = contentType.split('/')[1].replace('jpeg', 'jpg');
+    const path = `${propertyId}/img-${Date.now()}.${ext}`;
+    const up = await sb.storage.from(PROPERTY_IMAGES_BUCKET).upload(path, body, { contentType, upsert: false });
+    if (up.error) return { ok: false, code: 'error', message: up.error.message };
+    const { data, error } = await sb
+      .from('property_images')
+      .insert({ property_id: propertyId, path, mime_type: contentType, size_bytes: body.byteLength, position })
+      .select('id,path,position,is_cover')
+      .single();
+    if (error) {
+      await sb.storage.from(PROPERTY_IMAGES_BUCKET).remove([path]); // لا نترك ملفًا يتيمًا
+      return fail(error);
+    }
+    const r = data as ImageRow;
+    return { ok: true, data: { id: r.id, url: publicUrl(sb)(r.path), position: r.position, isCover: r.is_cover } };
+  });
+}
+
+export function setCoverImage(propertyId: string, imageId: string) {
+  if (demo()) return Promise.resolve(demoOwner.setCover(propertyId, imageId));
+  return guard(async (sb) => {
+    const { error } = await sb.rpc('set_cover_image', { p_image: imageId });
+    return error ? fail(error) : { ok: true, data: undefined };
+  });
+}
+
+export function removeImage(propertyId: string, imageId: string) {
+  if (demo()) return Promise.resolve(demoOwner.removeImage(propertyId, imageId));
+  return guard(async (sb) => {
+    const { data, error } = await sb.from('property_images').delete().eq('id', imageId).select('path');
+    if (error) return fail(error);
+    if (!data?.length) return { ok: false, code: 'not_allowed' };
+    await sb.storage.from(PROPERTY_IMAGES_BUCKET).remove([(data[0] as { path: string }).path]);
+    return { ok: true, data: undefined };
+  });
+}
+
+export function reorderImages(propertyId: string, orderedIds: string[]) {
+  if (demo()) return Promise.resolve(demoOwner.reorderImages(propertyId, orderedIds));
+  return guard(async (sb) => {
+    for (const [position, id] of orderedIds.entries()) {
+      const { error } = await sb.from('property_images').update({ position }).eq('id', id);
+      if (error) return fail(error);
+    }
+    return { ok: true, data: undefined };
   });
 }
 
@@ -447,6 +566,34 @@ export function adminSetRole(userId: string, role: AdminUser['role']) {
   return guard(async (sb) => {
     const { error } = await sb.rpc('admin_set_role', { p_user: userId, p_role: role });
     return error ? fail(error) : { ok: true, data: undefined };
+  });
+}
+
+export interface AuditEntry {
+  id: number;
+  actorId: string | null;
+  actorName?: string;
+  action: string;
+  entity: string;
+  entityId: string;
+  details: Record<string, unknown>;
+  createdAt: string;
+}
+
+/** سجل التدقيق (للمدير فقط؛ الخادم يرفض غيره). */
+export function adminAuditLog(entity?: string, limit = 100) {
+  if (demo()) return Promise.resolve(demoAdmin.auditLog(entity));
+  return guard<AuditEntry[]>(async (sb) => {
+    const { data, error } = await sb.rpc('admin_audit_log', { p_entity: entity ?? null, p_limit: limit });
+    if (error) return fail(error);
+    type Row = { id: number; actor_id: string | null; actor_name: string | null; action: string; entity: string; entity_id: string; details: Record<string, unknown> | null; created_at: string };
+    return {
+      ok: true,
+      data: ((data ?? []) as Row[]).map((r) => ({
+        id: r.id, actorId: r.actor_id, actorName: r.actor_name ?? undefined, action: r.action, entity: r.entity,
+        entityId: r.entity_id, details: r.details ?? {}, createdAt: r.created_at,
+      })),
+    };
   });
 }
 

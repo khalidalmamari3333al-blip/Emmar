@@ -23,6 +23,21 @@ describe('PropertyDetailScreen', () => {
     expect(screen.getByText(t.mockBadge)).toBeTruthy();
   });
 
+  it('shows costs, included services, amenities and cancellation policy', async () => {
+    const t = dictionaries.ar;
+    await renderIn('mock-1');
+    await screen.findByTestId('costs');
+    expect(screen.getByText(t.features.costs.firstPayment)).toBeTruthy();
+    expect(screen.getByText(t.features.sections.included)).toBeTruthy();
+    expect(screen.getByText(t.features.sections.cancellation)).toBeTruthy();
+  });
+
+  it('hides rental costs for sale listings', async () => {
+    await renderIn('mock-3', 'en');
+    await screen.findByText('Modern Omani-style villa');
+    expect(screen.queryByTestId('costs')).toBeNull();
+  });
+
   it('renders in English', async () => {
     await renderIn('mock-3', 'en');
     expect(await screen.findByText('Modern Omani-style villa')).toBeTruthy();

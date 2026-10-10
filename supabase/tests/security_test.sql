@@ -258,4 +258,68 @@ select public.unregister_push_token('ExponentPushToken[abc123456]');
 reset role;
 select pg_temp.check((select count(*) from public.push_tokens) = 1, 'cannot unregister another user''s device');
 
+-- ===== 12. الأساس الموسّع: الأدوار، التدقيق، الأنواع، المواصفات، الصور =====
+-- سجل التدقيق يُكتب تلقائيًا
+select pg_temp.check((select count(*) from public.audit_logs where action = 'role.changed' and entity_id = '00000000-0000-4000-8000-0000000000e1') >= 1, 'role changes are audited');
+select pg_temp.check((select count(*) from public.audit_logs where action = 'booking.status') >= 1, 'booking status changes are audited');
+select pg_temp.check((select count(*) from public.audit_logs where action = 'property.featured') >= 1, 'featuring a listing is audited');
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e2');
+select pg_temp.check((select count(*) from public.audit_logs) = 0, 'non-admins cannot read the audit log');
+select pg_temp.expect_error($$insert into public.audit_logs (action, entity, entity_id) values ('x','y','z')$$, '42501', 'nobody can forge audit entries');
+select pg_temp.expect_error($$select * from public.admin_audit_log()$$, '42501', 'non-admins cannot call the audit report');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000ad');
+select pg_temp.check((select count(*) from public.admin_audit_log('property')) >= 1, 'admin reads the audit log with actor names');
+select pg_temp.expect_error($$update public.audit_logs set action = 'tampered'$$, '42501', 'even admins cannot edit the audit log');
+select pg_temp.expect_error($$delete from public.audit_logs$$, '42501', 'even admins cannot delete audit entries');
+reset role;
+
+-- دور فريق التحقق
+insert into auth.users (id, email) values ('00000000-0000-4000-8000-0000000000f1', 'verifier@example.com');
+update public.profiles set role = 'verifier' where id = '00000000-0000-4000-8000-0000000000f1';
+
+-- ملف المؤجر
+select pg_temp.as_user('00000000-0000-4000-8000-00000000d001');
+insert into public.landlord_profiles (user_id, account_type, legal_name) values (auth.uid(), 'individual', 'خالد المعمري');
+select pg_temp.check(true, 'landlord creates own profile');
+select pg_temp.expect_error($$update public.landlord_profiles set verification_status = 'verified'$$, '42501', 'landlord cannot mark themselves verified');
+select pg_temp.expect_error($$insert into public.landlord_profiles (user_id, account_type, company_cr) values ('00000000-0000-4000-8000-0000000000e3', 'company', '123')$$, '42501', 'cannot create a landlord profile for someone else');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e3');
+select pg_temp.check((select count(*) from public.landlord_profiles) = 0, 'another landlord cannot read this landlord profile');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000f1');
+select pg_temp.check((select count(*) from public.landlord_profiles) = 1, 'verification team can read landlord profiles');
+select pg_temp.check((select count(*) from public.audit_logs) = 0, 'verification team cannot read the platform audit log');
+reset role;
+
+-- أنواع العقارات قابلة للتوسعة ومقيدة بنوع العرض
+select pg_temp.as_user('00000000-0000-4000-8000-00000000d001');
+insert into public.properties (owner_id, kind, type, city, district_ar, district_en, title_ar, title_en, price_omr, price_period, furnished, amenities, utilities_included, near_landmarks, deposit_omr)
+values (auth.uid(), 'rent', 'house', 'sohar', 'الطريف', 'Al Tareef', 'بيت للإيجار', 'House for rent', 400, 'monthly', 'furnished', '{wifi,parking}', '{water,internet}', '{sohar_university}', 400);
+select pg_temp.check(true, 'owner lists a new extensible type (house) with amenities');
+select pg_temp.expect_error($$insert into public.properties (owner_id, kind, type, city, district_ar, district_en, title_ar, title_en, price_omr, price_period) values (auth.uid(), 'rent', 'land', 'sohar', 'x', 'x', 'أرض', 'Land', 1, 'monthly')$$, '23514', 'a type must match its listing kind (land is sale-only)');
+select pg_temp.expect_error($$insert into public.properties (owner_id, kind, type, city, district_ar, district_en, title_ar, title_en, price_omr, price_period, amenities) values (auth.uid(), 'rent', 'room', 'sohar', 'x', 'x', 'غرفة', 'Room', 1, 'monthly', '{jacuzzi}')$$, '23514', 'unknown amenity codes are rejected');
+select pg_temp.expect_error($$insert into public.property_types (code, name_ar, name_en, allowed_kinds) values ('castle', 'قلعة', 'Castle', '{sale}')$$, '42501', 'only the platform manages property types');
+reset role;
+
+-- الصور المتعددة
+create temp table t_house as select id from public.properties where type = 'house' limit 1;
+grant select on t_house to authenticated, anon;
+select pg_temp.as_user('00000000-0000-4000-8000-00000000d001');
+insert into public.property_images (property_id, path, mime_type, size_bytes, position) select id, id || '/a.jpg', 'image/jpeg', 120000, 0 from t_house;
+insert into public.property_images (property_id, path, mime_type, size_bytes, position) select id, id || '/b.webp', 'image/webp', 90000, 1 from t_house;
+select pg_temp.check((select cover_image_path from public.properties where id = (select id from t_house)) like '%/a.jpg', 'first image becomes the cover automatically');
+select public.set_cover_image((select id from public.property_images where path like '%/b.webp'));
+select pg_temp.check((select cover_image_path from public.properties where id = (select id from t_house)) like '%/b.webp', 'owner changes the cover');
+select pg_temp.expect_error($$insert into public.property_images (property_id, path, mime_type, size_bytes) select id, id || '/c.gif', 'image/gif', 100 from t_house$$, '23514', 'only jpeg, png and webp images are accepted');
+select pg_temp.expect_error($$insert into public.property_images (property_id, path, mime_type, size_bytes) select id, id || '/big.jpg', 'image/jpeg', 6000000 from t_house$$, '23514', 'images over 5 MB are rejected');
+select pg_temp.expect_error($$insert into public.property_images (property_id, path, mime_type, size_bytes) select id, '00000000-0000-4000-8000-0000000000a1/x.jpg', 'image/jpeg', 100 from t_house$$, '23514', 'an image path must be inside its own property folder');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e3');
+select pg_temp.expect_error($$select public.set_cover_image((select id from public.property_images limit 1))$$, '42501', 'another owner cannot change the cover');
+insert into public.property_images (property_id, path, mime_type, size_bytes) select id, id || '/evil.jpg', 'image/jpeg', 100 from t_house where false;
+select pg_temp.expect_error($$insert into public.property_images (property_id, path, mime_type, size_bytes) select id, id || '/evil.jpg', 'image/jpeg', 100 from t_house$$, '42501', 'another owner cannot add images to this property');
+reset role;
+
 \echo 'ALL DATABASE TESTS PASSED'

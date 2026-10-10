@@ -1,20 +1,26 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ChipGroup } from '@/components/ChipGroup';
+import { ChipGroup, MultiChipGroup } from '@/components/ChipGroup';
 import { FadeIn, stagger } from '@/components/motion';
 import { SearchIcon } from '@/components/omani/icons';
 import { PropertyCard } from '@/components/PropertyCard';
 import { MockBadge, StatusNotice } from '@/components/StatusNotice';
 import { useLocale } from '@/i18n';
-import { DataResult, searchProperties } from '@/services/properties';
+import { DataResult, PAGE_SIZE, searchProperties } from '@/services/properties';
 import { colors, font, fonts, radius, spacing } from '@/theme';
-import { City, ListingKind, PropertySummary, PropertyType, SearchFilters, TYPES_BY_KIND } from '@/types/property';
+import { Amenity, City, LANDMARKS, ListingKind, PropertySummary, PropertyType, SearchFilters, TYPES_BY_KIND, UTILITIES } from '@/types/property';
 
 const CITIES: City[] = ['sohar', 'muscat'];
 const KINDS: ListingKind[] = ['rent', 'sale', 'student'];
-const ALL_TYPES: PropertyType[] = ['apartment', 'studio', 'villa', 'land', 'student_housing'];
+const ALL_TYPES: PropertyType[] = ['apartment', 'studio', 'room', 'villa', 'house', 'building', 'land', 'student_housing'];
+/** المرافق الأكثر طلبًا في البحث (البقية تظهر في صفحة العقار). */
+const SEARCH_AMENITIES: Amenity[] = ['wifi', 'ac', 'kitchen', 'parking', 'laundry', 'security', 'study_room'];
+/** مدينة كل معلم (لعرض المعالم المناسبة حسب المدينة المختارة). */
+const LANDMARK_CITY: Record<(typeof LANDMARKS)[number], City | 'both'> = {
+  sohar_university: 'sohar', utas_sohar: 'sohar', sohar_port: 'sohar', squ: 'muscat', utas_muscat: 'muscat', muscat_university: 'muscat', city_center: 'both', beach: 'both',
+};
 
 /** يحوّل نص حقل السعر إلى رقم، أو undefined إن كان فارغًا/غير صالح. يقبل الأرقام العربية. */
 export function parsePrice(text: string): number | undefined {
@@ -26,12 +32,15 @@ export function parsePrice(text: string): number | undefined {
 
 export interface SearchScreenProps {
   initialFilters?: SearchFilters;
-  search?: (f: SearchFilters) => Promise<DataResult<PropertySummary[]>>;
+  /** `page` يبدأ من 0؛ صفحة أقل من PAGE_SIZE تعني نهاية النتائج */
+  search?: (f: SearchFilters, page?: number) => Promise<DataResult<PropertySummary[]>>;
   onOpen?: (id: string) => void;
   debounceMs?: number;
 }
 
-export function SearchScreen({ initialFilters = {}, search = searchProperties, onOpen = () => {}, debounceMs = 300 }: SearchScreenProps) {
+const defaultSearch = (f: SearchFilters, page = 0) => searchProperties(f, undefined, undefined, page);
+
+export function SearchScreen({ initialFilters = {}, search = defaultSearch, onOpen = () => {}, debounceMs = 300 }: SearchScreenProps) {
   const { t, locale } = useLocale();
   const [filters, setFilters] = useState<SearchFilters>(initialFilters);
   const [queryText, setQueryText] = useState(initialFilters.query ?? '');
@@ -39,6 +48,8 @@ export function SearchScreen({ initialFilters = {}, search = searchProperties, o
   const [maxText, setMaxText] = useState(initialFilters.maxPrice?.toString() ?? '');
   const [showFilters, setShowFilters] = useState(false);
   const [loaded, setLoaded] = useState<{ key: string; result: DataResult<PropertySummary[]> } | null>(null);
+  // الصفحات الإضافية (تحميل تدريجي) لنفس الفلاتر
+  const [more, setMore] = useState<{ key: string; items: PropertySummary[]; page: number; done: boolean; loading: boolean } | null>(null);
 
   // حقول النص تُطبَّق بعد توقف الكتابة قليلًا لتقليل الطلبات.
   useEffect(() => {
@@ -60,10 +71,30 @@ export function SearchScreen({ initialFilters = {}, search = searchProperties, o
   }, [key, search]);
 
   const result = loaded?.key === key ? loaded.result : null;
+  const extra = more?.key === key ? more : null;
+  const firstPage = result?.status === 'ok' ? result.data : [];
+  const items = extra ? [...firstPage, ...extra.items] : firstPage;
+  const canLoadMore = result?.status === 'ok' && firstPage.length >= PAGE_SIZE && !extra?.done && !extra?.loading;
+
+  const loadMore = () => {
+    if (!canLoadMore) return;
+    const page = (extra?.page ?? 0) + 1;
+    setMore({ key, items: extra?.items ?? [], page: page - 1, done: false, loading: true });
+    search(filters, page).then((r) => {
+      setMore((cur) => {
+        if (!cur || cur.key !== key) return cur;
+        const got = r.status === 'ok' ? r.data : [];
+        return { key, items: [...cur.items, ...got], page, done: got.length < PAGE_SIZE, loading: false };
+      });
+    });
+  };
   const set = (patch: Partial<SearchFilters>) => setFilters((f) => ({ ...f, ...patch }));
   const types = filters.kind ? TYPES_BY_KIND[filters.kind] : ALL_TYPES;
-  const extraCount = [filters.city, filters.type, filters.minPrice, filters.maxPrice, filters.minBedrooms].filter((v) => v !== undefined).length;
-  const hasFilters = useMemo(() => Object.values(filters).some((v) => v !== undefined), [filters]);
+  const extraCount =
+    [filters.city, filters.type, filters.minPrice, filters.maxPrice, filters.minBedrooms, filters.landmark, filters.furnishedOnly || undefined].filter((v) => v !== undefined).length +
+    (filters.amenities?.length ?? 0) +
+    (filters.utilities?.length ?? 0);
+  const hasFilters = useMemo(() => Object.values(filters).some((v) => v !== undefined && v !== false && !(Array.isArray(v) && !v.length)), [filters]);
 
   const reset = () => {
     setQueryText('');
@@ -130,11 +161,31 @@ export function SearchScreen({ initialFilters = {}, search = searchProperties, o
         </>
       )}
 
+      <Text style={styles.label}>{t.features.filters.near}</Text>
+      <ChipGroup
+        testID="filter-near"
+        allLabel={t.search.all}
+        value={filters.landmark}
+        onChange={(landmark) => set({ landmark })}
+        options={LANDMARKS.filter((l) => !filters.city || LANDMARK_CITY[l] === 'both' || LANDMARK_CITY[l] === filters.city).map((l) => ({ value: l, label: t.features.landmarks[l] }))}
+      />
+
+      <Text style={styles.label}>{t.features.filters.utilities}</Text>
+      <MultiChipGroup testID="filter-utilities" value={filters.utilities ?? []} onChange={(utilities) => set({ utilities: utilities.length ? utilities : undefined })} options={UTILITIES.map((u) => ({ value: u, label: t.features.utilities[u] }))} />
+
+      <Text style={styles.label}>{t.features.filters.amenities}</Text>
+      <MultiChipGroup
+        testID="filter-amenities"
+        value={[...(filters.amenities ?? []), ...(filters.furnishedOnly ? (['__furnished'] as const) : [])] as string[]}
+        onChange={(v) => set({ furnishedOnly: v.includes('__furnished') || undefined, amenities: (v.filter((x) => x !== '__furnished') as Amenity[]).length ? (v.filter((x) => x !== '__furnished') as Amenity[]) : undefined })}
+        options={[{ value: '__furnished', label: t.features.filters.furnishedOnly }, ...SEARCH_AMENITIES.map((a) => ({ value: a as string, label: t.features.amenities[a] }))]}
+      />
+
       </FadeIn>
       )}
 
       <View style={styles.summaryRow}>
-        <Text style={styles.count}>{result?.status === 'ok' ? t.search.results(result.data.length) : ' '}</Text>
+        <Text style={styles.count}>{result?.status === 'ok' ? t.search.results(items.length) : ' '}</Text>
         {hasFilters && (
           <Pressable onPress={reset} accessibilityRole="button">
             <Text style={styles.reset}>{t.search.reset}</Text>
@@ -150,7 +201,11 @@ export function SearchScreen({ initialFilters = {}, search = searchProperties, o
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <FlatList
-        data={result?.status === 'ok' ? result.data : []}
+        testID="search-results"
+        data={items}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={extra?.loading ? <ActivityIndicator color={colors.primary} style={{ margin: spacing.lg }} /> : null}
         keyExtractor={(p) => p.id}
         ListHeaderComponent={header}
         renderItem={({ item, index }) => (

@@ -7,7 +7,8 @@ import { OwnerDashboardScreen } from '@/screens/owner/OwnerDashboardScreen';
 import { OwnerRequestsScreen } from '@/screens/owner/OwnerRequestsScreen';
 import { PropertyEditorScreen } from '@/screens/owner/PropertyEditorScreen';
 import { StructureEditor } from '@/screens/owner/StructureEditor';
-import { emptyPropertyInput, OwnerProperty, OwnerRequest } from '@/services/owner';
+import { ImageManager, ImageServices } from '@/screens/owner/ImageManager';
+import { emptyPropertyInput, OwnerImage, OwnerProperty, OwnerRequest, validateImage } from '@/services/owner';
 import { fakeAuthBackend, OWNER, STUDENT } from '@/test-utils/fakeAuth';
 import type { BuildingLayout } from '@/types/layout';
 
@@ -103,6 +104,47 @@ describe('PropertyEditorScreen', () => {
     expect(upload).toHaveBeenCalledWith('p1', { uri: 'file:///x.jpg', mimeType: 'image/jpeg' });
     expect(await screen.findByText(t.owner.changePhoto)).toBeTruthy();
     expect(screen.getByText(t.owner.structure.noBuildings)).toBeTruthy();
+  });
+});
+
+describe('ImageManager', () => {
+  it('validates, adds, sets cover, reorders and deletes photos', async () => {
+    let imgs: OwnerImage[] = [];
+    const services: ImageServices = {
+      list: async () => ({ ok: true, data: imgs.map((i) => ({ ...i })) }),
+      add: jest.fn(async (_p, a, position) => {
+        if (validateImage(a)) return { ok: false as const, code: 'error' as const, message: validateImage(a)! };
+        const img = { id: `i${imgs.length}`, url: a.uri, position, isCover: imgs.length === 0 };
+        imgs = [...imgs, img];
+        return { ok: true as const, data: img };
+      }),
+      setCover: jest.fn(async (_p, id) => {
+        imgs = imgs.map((i) => ({ ...i, isCover: i.id === id }));
+        return { ok: true as const, data: undefined };
+      }),
+      remove: jest.fn(async (_p, id) => {
+        imgs = imgs.filter((i) => i.id !== id);
+        return { ok: true as const, data: undefined };
+      }),
+      reorder: jest.fn(async (_p, ids: string[]) => {
+        imgs = ids.map((id, position) => ({ ...imgs.find((i) => i.id === id)!, position }));
+        return { ok: true as const, data: undefined };
+      }),
+    };
+    const picks = [{ uri: 'a.gif', mimeType: 'image/gif' }, { uri: 'a.jpg', mimeType: 'image/jpeg' }, { uri: 'b.png', mimeType: 'image/png' }];
+    await wrap(<ImageManager propertyId="p1" services={services} pickImage={async () => picks.shift()!} />);
+    await fireEvent.press(await screen.findByTestId('add-image'));
+    expect(await screen.findByText(t.extras.gallery.badType)).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('add-image'));
+    await fireEvent.press(await screen.findByTestId('add-image'));
+    expect(await screen.findByTestId('image-i1')).toBeTruthy();
+    await fireEvent.press(screen.getByText(t.extras.gallery.makeCover));
+    expect(services.setCover).toHaveBeenCalledWith('p1', 'i1');
+    await fireEvent.press((await screen.findAllByText(t.extras.gallery.moveEarlier))[1]);
+    expect(services.reorder).toHaveBeenCalledWith('p1', ['i1', 'i0']);
+    await fireEvent.press((await screen.findAllByText(t.extras.gallery.remove))[0]);
+    expect(services.remove).toHaveBeenCalledWith('p1', 'i1');
+    await waitFor(() => expect(screen.queryByTestId('image-i1')).toBeNull());
   });
 });
 

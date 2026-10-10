@@ -81,7 +81,27 @@ export const en: Strings = {
     results: (n) => (n === 1 ? '1 result' : `${n} results`),
     empty: 'No properties match your search. Try relaxing the filters.',
   },
-  types: { apartment: 'Apartment', studio: 'Studio', villa: 'Villa', land: 'Land', student_housing: 'Student housing' },
+  types: { apartment: 'Apartment', studio: 'Studio', room: 'Room', villa: 'Villa', house: 'House', building: 'Residential building', land: 'Land', student_housing: 'Student housing' },
+  features: {
+    amenities: {
+      wifi: 'Wi-Fi', ac: 'Air conditioning', kitchen: 'Kitchen', parking: 'Parking', laundry: 'Laundry', security: 'Security',
+      elevator: 'Lift', cleaning: 'Cleaning', gym: 'Gym', pool: 'Pool', study_room: 'Study room', prayer_room: 'Prayer room',
+    },
+    utilities: { electricity: 'Electricity', water: 'Water', internet: 'Internet', gas: 'Gas' },
+    landmarks: {
+      sohar_university: 'Sohar University', utas_sohar: 'UTAS Sohar', squ: 'Sultan Qaboos University', utas_muscat: 'UTAS Muscat',
+      muscat_university: 'Muscat University', sohar_port: 'Sohar Port', city_center: 'City centre', beach: 'Beach',
+    },
+    furnished: { unfurnished: 'Unfurnished', semi: 'Semi-furnished', furnished: 'Furnished' },
+    cancellation: {
+      flexible: { title: 'Flexible', body: 'Free cancellation up to 7 days before move-in.' },
+      moderate: { title: 'Moderate', body: 'Free cancellation up to 14 days before move-in; after that part of the deposit is kept.' },
+      strict: { title: 'Strict', body: 'The deposit is non-refundable after the booking is confirmed, except for an accepted reason.' },
+    },
+    sections: { amenities: 'Amenities', included: 'Included in the rent', notIncluded: 'Not included', near: 'Close to', costs: 'Expected cost', rules: 'House rules', cancellation: 'Cancellation policy', gallery: 'Photos' },
+    costs: { rent: 'Rent', deposit: 'Deposit (refundable)', fees: 'One-time fees', firstPayment: 'Expected first payment', noExtra: 'No extra fees listed', depositNote: 'The deposit is returned at move-out according to the contract and the condition of the home.' },
+    filters: { furnishedOnly: 'Furnished only', amenities: 'Amenities', utilities: 'Included in rent', near: 'Close to' },
+  },
   detail: {
     notFound: 'This property could not be found. It may have been removed or unpublished.',
     description: 'Description',
@@ -234,7 +254,7 @@ export const en: Strings = {
     dashboard: 'Admin dashboard',
     openDashboard: 'Open admin dashboard',
     notAdmin: 'This dashboard is for administrators only.',
-    tabs: { users: 'Users', properties: 'Properties' },
+    tabs: { users: 'Users', properties: 'Properties', audit: 'Audit log' },
     searchUsers: 'Search by email or name',
     roles: { user: 'User', owner: 'Owner', admin: 'Admin' },
     you: 'You',
@@ -247,6 +267,20 @@ export const en: Strings = {
     publish: 'Publish',
     archive: 'Archive',
     noProperties: 'No properties.',
+  },
+  extras: {
+    sections: { features: 'Amenities & services', costs: 'Additional costs', terms: 'Terms & cancellation' },
+    fields: { furnished: 'Furnishing', deposit: 'Security deposit (OMR)', fees: 'One-time fees (OMR)', rulesAr: 'Terms (Arabic)', rulesEn: 'Terms (English)', amenities: 'Amenities', utilities: 'Included in rent', landmarks: 'Close to', cancellation: 'Cancellation policy' },
+    gallery: {
+      add: 'Add photo', cover: 'Cover', makeCover: 'Make cover', remove: 'Delete', moveEarlier: 'Move earlier', moveLater: 'Move later',
+      badType: 'Unsupported format. Use JPG, PNG or WebP.', tooLarge: 'The photo is larger than 5 MB.', max: (n) => `Up to ${n} photos.`,
+      hint: 'JPG, PNG or WebP up to 5 MB. The first photo becomes the cover automatically.', empty: 'No photos yet.',
+    },
+    audit: {
+      empty: 'No recorded actions.', all: 'All', system: 'System',
+      actions: { 'role.changed': 'Role changed', 'booking.created': 'New booking', 'booking.status': 'Booking status', 'property.created': 'Property added', 'property.status': 'Property status', 'property.featured': 'Property featured' },
+      entities: { profile: 'User', booking: 'Booking', property: 'Property' },
+    },
   },
   profile: {
     title: 'My details',

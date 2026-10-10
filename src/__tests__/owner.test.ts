@@ -1,4 +1,4 @@
-import { emptyPropertyInput, mapRequestRow, nextRoomCodes, toNumber, toPropertyRow, validatePropertyInput, whatsappLink } from '@/services/owner';
+import { emptyPropertyInput, mapRequestRow, validateImage, nextRoomCodes, toNumber, toPropertyRow, validatePropertyInput, whatsappLink } from '@/services/owner';
 
 const valid = {
   ...emptyPropertyInput(),
@@ -76,5 +76,27 @@ describe('mapRequestRow', () => {
     expect(r.status).toBe('expired');
     expect(r.monthlyPriceOmr).toBe(45);
     expect(r.requesterPhone).toBeUndefined();
+  });
+});
+
+describe('amenities, costs and terms', () => {
+  it('rejects negative or malformed deposit/fees and over-long rules', () => {
+    const e = validatePropertyInput({ ...valid, deposit: '-5', fees: 'abc', rulesAr: 'x'.repeat(2001) });
+    expect(e).toMatchObject({ deposit: 'invalid_number', fees: 'invalid_number', rulesAr: 'too_long' });
+  });
+
+  it('maps the new fields to columns and drops rental-only costs for sales', () => {
+    const rent = toPropertyRow({ ...valid, kind: 'rent', type: 'apartment', amenities: ['wifi'], utilities: ['water'], landmarks: ['squ'], deposit: '٢٢٠', fees: '25', furnished: 'semi', cancellationPolicy: 'strict' });
+    expect(rent).toMatchObject({ amenities: ['wifi'], utilities_included: ['water'], near_landmarks: ['squ'], deposit_omr: 220, fees_omr: 25, furnished: 'semi', cancellation_policy: 'strict' });
+    const sale = toPropertyRow({ ...valid, kind: 'sale', type: 'villa', utilities: ['water'], deposit: '100' });
+    expect(sale).toMatchObject({ utilities_included: [], deposit_omr: null, fees_omr: null });
+  });
+});
+
+describe('validateImage', () => {
+  it('accepts jpeg/png/webp up to 5 MB only', () => {
+    expect(validateImage({ uri: 'a', mimeType: 'image/png', fileSize: 1000 })).toBeNull();
+    expect(validateImage({ uri: 'a', mimeType: 'image/gif' })).toBe('bad_type');
+    expect(validateImage({ uri: 'a', mimeType: 'image/jpeg', fileSize: 6 * 1024 * 1024 })).toBe('too_large');
   });
 });

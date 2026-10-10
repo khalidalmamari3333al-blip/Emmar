@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
 import { dictionaries, LocaleProvider } from '@/i18n';
+
+import { mockProperties } from '@/data/mock/properties';
 import { parsePrice, SearchScreen } from '@/screens/SearchScreen';
 import { searchProperties } from '@/services/properties';
 import type { SearchFilters } from '@/types/property';
@@ -76,6 +78,37 @@ describe('SearchScreen', () => {
     await fireEvent.press(screen.getByTestId('toggle-filters'));
     expect(screen.getByTestId('filter-city')).toBeTruthy();
     expect(screen.getByText(t.search.hideFilters)).toBeTruthy();
+  });
+
+  it('filters by included services and amenities (multi-select)', async () => {
+    const { search } = await setup({ kind: 'student' });
+    await screen.findByText(t.search.results(3));
+    await fireEvent.press(screen.getByTestId('toggle-filters'));
+    await fireEvent.press(screen.getByText(t.features.utilities.internet));
+    await fireEvent.press(screen.getByText(t.features.amenities.study_room));
+    expect(lastFilters(search)).toEqual({ kind: 'student', utilities: ['internet'], amenities: ['study_room'] });
+    expect(await screen.findByText(t.search.results(3))).toBeTruthy();
+    await fireEvent.press(screen.getByText(t.features.landmarks.squ));
+    expect(await screen.findByText(t.search.results(1))).toBeTruthy();
+    expect(screen.getByTestId('property-mock-15')).toBeTruthy();
+  });
+
+  it('loads the next page when scrolling to the end', async () => {
+    const make = (n: number, from: number) =>
+      Array.from({ length: n }, (_, i) => ({ ...mockProperties[0], id: `p-${from + i}` }));
+    const search = jest.fn(async (_f: SearchFilters, page = 0) => ({ status: 'ok' as const, source: 'live' as const, data: page === 0 ? make(20, 0) : page === 1 ? make(5, 20) : [] }));
+    await render(
+      <LocaleProvider initialLocale="ar">
+        <SearchScreen search={search} debounceMs={0} />
+      </LocaleProvider>,
+    );
+    await screen.findByText(t.search.results(20));
+    const list = screen.getByTestId('search-results');
+    await fireEvent(list, 'onEndReached');
+    expect(search).toHaveBeenLastCalledWith({}, 1);
+    expect(await screen.findByText(t.search.results(25))).toBeTruthy();
+    await fireEvent(list, 'onEndReached'); // آخر صفحة كانت أقل من 20 ← لا مزيد
+    expect(search.mock.calls.filter((c) => c[1] === 2)).toHaveLength(0);
   });
 
   it('shows an empty state when nothing matches', async () => {

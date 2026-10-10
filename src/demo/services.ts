@@ -6,11 +6,11 @@ import type { LocalizedText } from '@/i18n/types';
 import type { AuthBackend, AuthUser } from '@/lib/auth';
 import type { MyBooking } from '@/services/bookings';
 import type { AppNotification, NotificationsBackend } from '@/services/notifications';
-import type { AdminUser, ImageAsset, OwnerProperty, OwnerRequest, OwnerStats, PropertyInput, Result } from '@/services/owner';
+import type { AdminUser, AuditEntry, ImageAsset, OwnerImage, OwnerProperty, OwnerRequest, OwnerStats, PropertyInput, Result } from '@/services/owner';
 import type { Availability, BuildingLayout } from '@/types/layout';
 import type { City, ListingStatus, PropertyDetail, PropertySummary, SearchFilters } from '@/types/property';
 
-import { bedIsFree, createBooking, decide, DEMO_USERS, DemoProperty, DemoRole, demoState, findBed, newId, notifyChange, setCurrentUser, subscribe } from './store';
+import { audit, bedIsFree, createBooking, decide, DEMO_USERS, DemoProperty, DemoRole, demoState, findBed, newId, notifyChange, setCurrentUser, subscribe } from './store';
 
 const ok = <T,>(data: T): Result<T> => ({ ok: true, data });
 const me = () => demoState().currentUserId;
@@ -172,8 +172,22 @@ function toOwnerProperty(p: DemoProperty): OwnerProperty {
       kind: p.kind, type: p.type, city: p.city, districtAr: p.district.ar, districtEn: p.district.en, titleAr: p.title.ar, titleEn: p.title.en,
       descriptionAr: p.description.ar, descriptionEn: p.description.en, price: String(p.priceOmr), bedrooms: p.bedrooms == null ? '' : String(p.bedrooms),
       area: p.areaSqm == null ? '' : String(p.areaSqm), status: p.status,
+      furnished: p.furnished, amenities: p.amenities ?? [], utilities: p.utilities ?? [], landmarks: p.nearLandmarks ?? [],
+      deposit: p.depositOmr == null ? '' : String(p.depositOmr), fees: p.feesOmr == null ? '' : String(p.feesOmr),
+      rulesAr: p.rules?.ar ?? '', rulesEn: p.rules?.en ?? '', cancellationPolicy: p.cancellationPolicy ?? 'moderate',
     },
   };
+}
+
+/** يحاكي المشغل sync_cover_image: الغلاف والترتيب ينعكسان على صفحة العقار. */
+function syncGallery(p: DemoProperty) {
+  const g = [...(p.gallery ?? [])].sort((a, b) => a.position - b.position);
+  g.forEach((x, i) => (x.position = i));
+  p.gallery = g;
+  const cover = g.find((x) => x.isCover);
+  if (cover) p.imageUrl = cover.url;
+  p.images = g.length ? [...(cover ? [cover] : []), ...g.filter((x) => !x.isCover)].map((x) => x.url) : undefined;
+  notifyChange();
 }
 
 const canManage = (p: DemoProperty) => {
@@ -193,6 +207,14 @@ function applyInput(p: Partial<DemoProperty>, i: PropertyInput, toNum: (s: strin
     bedrooms: i.kind === 'student' ? undefined : toNum(i.bedrooms),
     areaSqm: toNum(i.area),
     status: i.status,
+    furnished: i.furnished,
+    amenities: [...i.amenities],
+    utilities: i.kind === 'sale' ? [] : [...i.utilities],
+    nearLandmarks: [...i.landmarks],
+    depositOmr: i.kind === 'sale' ? undefined : toNum(i.deposit),
+    feesOmr: i.kind === 'sale' ? undefined : toNum(i.fees),
+    rules: i.rulesAr.trim() || i.rulesEn.trim() ? { ar: i.rulesAr.trim(), en: i.rulesEn.trim() } : undefined,
+    cancellationPolicy: i.cancellationPolicy,
     updatedAt: new Date().toISOString(),
   });
 }
@@ -210,6 +232,7 @@ export const demoOwner = {
     applyInput(p, input, toNum);
     demoState().properties.unshift(p);
     demoState().layouts[id] = [];
+    audit('property.created', 'property', id, { status: p.status });
     notifyChange();
     return ok(id);
   },
@@ -223,6 +246,7 @@ export const demoOwner = {
   setStatus(id: string, status: ListingStatus): Result {
     const p = demoState().properties.find((x) => x.id === id);
     if (!p || !canManage(p)) return { ok: false, code: 'not_allowed' };
+    if (p.status !== status) audit('property.status', 'property', id, { from: p.status, to: status });
     p.status = status;
     notifyChange();
     return ok(undefined);
@@ -234,6 +258,42 @@ export const demoOwner = {
     p.imageUrl = asset.uri;
     notifyChange();
     return ok(asset.uri);
+  },
+  listImages(id: string): Result<OwnerImage[]> {
+    const p = demoState().properties.find((x) => x.id === id);
+    if (!p || !canManage(p)) return { ok: false, code: 'not_allowed' };
+    return ok([...(p.gallery ?? [])].sort((a, b) => a.position - b.position).map((g) => ({ ...g })));
+  },
+  addImage(id: string, asset: ImageAsset): Result<OwnerImage> {
+    const p = demoState().properties.find((x) => x.id === id);
+    if (!p || !canManage(p)) return { ok: false, code: 'not_allowed' };
+    const g = (p.gallery ??= []);
+    const img = { id: newId('img'), url: asset.uri, position: g.length, isCover: g.length === 0 };
+    g.push(img);
+    syncGallery(p);
+    return ok({ ...img });
+  },
+  setCover(id: string, imageId: string): Result {
+    const p = demoState().properties.find((x) => x.id === id);
+    if (!p || !canManage(p) || !p.gallery?.some((g) => g.id === imageId)) return { ok: false, code: 'not_allowed' };
+    p.gallery.forEach((g) => (g.isCover = g.id === imageId));
+    syncGallery(p);
+    return ok(undefined);
+  },
+  removeImage(id: string, imageId: string): Result {
+    const p = demoState().properties.find((x) => x.id === id);
+    if (!p || !canManage(p) || !p.gallery?.some((g) => g.id === imageId)) return { ok: false, code: 'not_allowed' };
+    p.gallery = p.gallery.filter((g) => g.id !== imageId);
+    if (p.gallery.length && !p.gallery.some((g) => g.isCover)) p.gallery[0].isCover = true;
+    syncGallery(p);
+    return ok(undefined);
+  },
+  reorderImages(id: string, orderedIds: string[]): Result {
+    const p = demoState().properties.find((x) => x.id === id);
+    if (!p || !canManage(p)) return { ok: false, code: 'not_allowed' };
+    p.gallery?.forEach((g) => (g.position = Math.max(0, orderedIds.indexOf(g.id))));
+    syncGallery(p);
+    return ok(undefined);
   },
   addBuilding(propertyId: string, name: LocalizedText): Result<string> {
     const id = newId('bld');
@@ -342,13 +402,24 @@ export const demoAdmin = {
     if (userId === me()) return { ok: false, code: 'not_allowed' };
     const u = demoState().users.find((x) => x.id === userId);
     if (!u) return { ok: false, code: 'not_allowed' };
+    if (u.role !== role) audit('role.changed', 'profile', userId, { from: u.role, to: role });
     u.role = role;
     notifyChange();
     return ok(undefined);
   },
+  auditLog(entity?: string): Result<AuditEntry[]> {
+    const s = demoState();
+    if (s.users.find((u) => u.id === me())?.role !== 'admin') return { ok: false, code: 'not_allowed' };
+    return ok(
+      s.audit
+        .filter((a) => !entity || a.entity === entity)
+        .map((a) => ({ ...a, actorName: s.users.find((u) => u.id === a.actorId)?.fullName })),
+    );
+  },
   setFeatured(id: string, featured: boolean): Result {
     const p = demoState().properties.find((x) => x.id === id);
     if (!p) return { ok: false, code: 'not_allowed' };
+    if (p.featured !== featured) audit('property.featured', 'property', id, { featured });
     p.featured = featured;
     notifyChange();
     return ok(undefined);

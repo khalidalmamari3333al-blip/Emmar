@@ -22,8 +22,26 @@ export interface DemoUser {
   role: DemoRole;
 }
 
+export interface DemoImage {
+  id: string;
+  url: string;
+  position: number;
+  isCover: boolean;
+}
+
+export interface DemoAudit {
+  id: number;
+  actorId: string | null;
+  action: string;
+  entity: string;
+  entityId: string;
+  details: Record<string, unknown>;
+  createdAt: string;
+}
+
 export interface DemoProperty extends PropertyDetail {
   ownerId: string;
+  gallery?: DemoImage[];
   status: ListingStatus;
   updatedAt: string;
 }
@@ -64,6 +82,7 @@ interface State {
   layouts: Record<string, BuildingLayout[]>;
   bookings: DemoBooking[];
   notifications: DemoNotification[];
+  audit: DemoAudit[];
   currentUserId: string | null;
   seq: number;
 }
@@ -96,7 +115,7 @@ function seed(now = Date.now()): State {
     monthlyPriceOmr: 50,
     createdAt: iso(now - 30 * 864e5),
   }));
-  const s: State = { users, properties, layouts, bookings, notifications: [], currentUserId: null, seq: 1 };
+  const s: State = { users, properties, layouts, bookings, notifications: [], audit: [], currentUserId: null, seq: 1 };
   state = s;
   // طلبان جديدان بانتظار المالك + حجز مؤكد للطالب، حتى لا تبدو اللوحات فارغة
   createBooking('demo-reem', { bedId: 'Y-103-b1', start: '2026-11-01', end: '2027-03-01' }, now - 3 * 3600e3);
@@ -226,4 +245,10 @@ export function notifyChange() {
 
 export function newId(prefix: string) {
   return nextId(prefix);
+}
+
+/** يحاكي مشغلات audit_logs: سجل للعمليات الحساسة لا يُعدَّل. */
+export function audit(action: string, entity: string, entityId: string, details: Record<string, unknown> = {}) {
+  const s = demoState();
+  s.audit.unshift({ id: s.seq++, actorId: s.currentUserId, action, entity, entityId, details, createdAt: new Date().toISOString() });
 }

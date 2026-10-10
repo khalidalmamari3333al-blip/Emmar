@@ -24,3 +24,26 @@ export const mockProperties: PropertyDetail[] = [
   { id: 'mock-15', description: { ar: 'سكن طلاب على بعد 5 دقائق من جامعة السلطان قابوس، حافلة مجانية للجامعة.', en: 'Male residence 5 minutes from Sultan Qaboos University, free shuttle to campus.' }, title: { ar: 'سكن الخوض للطلاب', en: 'Al Khoudh Student Residence' }, city: 'muscat', district: { ar: 'الخوض', en: 'Al Khoudh' }, kind: 'student', type: 'student_housing', priceOmr: 60, pricePeriod: 'monthly', featured: true },
   { id: 'mock-16', description: { ar: 'فيلا جديدة للبيع بتشطيبات فاخرة ومسبح خاص.', en: 'New villa for sale with premium finishes and a private pool.' }, title: { ar: 'فيلا فاخرة بمسبح خاص', en: 'Luxury villa with private pool' }, city: 'muscat', district: { ar: 'بوشر', en: 'Bawshar' }, kind: 'sale', type: 'villa', priceOmr: 265000, pricePeriod: 'total', bedrooms: 6, areaSqm: 520, featured: false },
 ];
+
+// ---------- مواصفات العرض التجريبي (مرافق، خدمات مشمولة، تكاليف، شروط) ----------
+type Extra = Partial<Pick<PropertyDetail, 'furnished' | 'amenities' | 'utilities' | 'nearLandmarks' | 'depositOmr' | 'feesOmr' | 'cancellationPolicy' | 'rules'>>;
+const studentRules = { ar: 'الهدوء بعد الساعة 11 مساءً، ممنوع التدخين، الزيارات في الصالة فقط.', en: 'Quiet after 11 pm, no smoking, visitors in the lounge only.' };
+const EXTRAS: Record<string, Extra> = {
+  'mock-1': { furnished: 'semi', amenities: ['ac', 'kitchen', 'parking'], utilities: ['water'], nearLandmarks: ['city_center', 'beach'], depositOmr: 220, feesOmr: 25, cancellationPolicy: 'moderate' },
+  'mock-2': { furnished: 'furnished', amenities: ['wifi', 'ac', 'kitchen', 'laundry', 'security', 'study_room'], utilities: ['electricity', 'water', 'internet'], nearLandmarks: ['sohar_university', 'utas_sohar'], depositOmr: 45, feesOmr: 10, cancellationPolicy: 'flexible', rules: studentRules },
+  'mock-3': { furnished: 'unfurnished', amenities: ['parking', 'security'], nearLandmarks: ['city_center'] },
+  'mock-4': { furnished: 'furnished', amenities: ['wifi', 'ac', 'kitchen', 'parking', 'elevator'], utilities: ['water', 'internet'], nearLandmarks: ['muscat_university', 'city_center'], depositOmr: 180, feesOmr: 20, cancellationPolicy: 'moderate' },
+  'mock-5': {},
+  'mock-6': { furnished: 'furnished', amenities: ['ac', 'kitchen', 'parking'], utilities: ['water'], nearLandmarks: ['sohar_port'], depositOmr: 150, feesOmr: 15, cancellationPolicy: 'moderate' },
+  'mock-7': { furnished: 'unfurnished', amenities: ['ac', 'kitchen', 'parking', 'security'], nearLandmarks: ['sohar_university'], depositOmr: 650, feesOmr: 50, cancellationPolicy: 'strict' },
+  'mock-8': { furnished: 'unfurnished', amenities: ['ac', 'parking', 'elevator', 'security', 'pool'], nearLandmarks: ['beach', 'city_center'] },
+  'mock-9': { furnished: 'furnished', amenities: ['wifi', 'ac', 'kitchen', 'laundry', 'security', 'cleaning', 'study_room', 'prayer_room'], utilities: ['electricity', 'water', 'internet'], nearLandmarks: ['sohar_university', 'utas_sohar'], depositOmr: 55, feesOmr: 10, cancellationPolicy: 'flexible', rules: studentRules },
+  'mock-10': { furnished: 'furnished', amenities: ['wifi', 'ac', 'kitchen', 'parking', 'elevator', 'gym', 'pool', 'security'], utilities: ['water', 'internet'], nearLandmarks: ['beach'], depositOmr: 480, feesOmr: 40, cancellationPolicy: 'strict' },
+  'mock-11': { furnished: 'semi', amenities: ['ac', 'kitchen', 'parking', 'security'], nearLandmarks: ['city_center'], depositOmr: 900, feesOmr: 75, cancellationPolicy: 'strict' },
+  'mock-12': { furnished: 'unfurnished', amenities: ['ac', 'parking', 'elevator', 'gym'], nearLandmarks: ['city_center', 'beach'] },
+  'mock-13': {},
+  'mock-14': { furnished: 'furnished', amenities: ['wifi', 'ac', 'kitchen', 'cleaning', 'elevator'], utilities: ['electricity', 'water', 'internet'], nearLandmarks: ['city_center'], depositOmr: 100, feesOmr: 0, cancellationPolicy: 'flexible' },
+  'mock-15': { furnished: 'furnished', amenities: ['wifi', 'ac', 'kitchen', 'laundry', 'security', 'gym', 'study_room'], utilities: ['electricity', 'water', 'internet'], nearLandmarks: ['squ'], depositOmr: 60, feesOmr: 10, cancellationPolicy: 'moderate', rules: studentRules },
+  'mock-16': { furnished: 'semi', amenities: ['ac', 'kitchen', 'parking', 'pool', 'security'], nearLandmarks: ['city_center'] },
+};
+for (const p of mockProperties) Object.assign(p, EXTRAS[p.id] ?? {});
