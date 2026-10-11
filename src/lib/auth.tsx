@@ -1,0 +1,266 @@
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+
+import { demoAuthBackend } from '@/demo/services';
+import type { DemoRole } from '@/demo/store';
+import { isSupabaseConfigured, readConfig } from '@/lib/config';
+import { normalizeOmanMobile } from '@/lib/phone';
+import { getSupabase } from '@/lib/supabase';
+
+export type UserRole = 'user' | 'owner' | 'admin' | 'verifier' | 'support';
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  fullName?: string;
+  phone?: string;
+  /** الهاتف مؤكَّد برمز OTP */
+  phoneVerified?: boolean;
+  /** من جدول profiles؛ يُستخدم لإظهار اللوحات فقط — الحماية الفعلية في RLS. */
+  role: UserRole;
+}
+
+export const isOwnerRole = (u: AuthUser | null) => u?.role === 'owner' || u?.role === 'admin';
+export const isAdminRole = (u: AuthUser | null) => u?.role === 'admin';
+/** فريق التحقق (والمدير) */
+export const isStaffRole = (u: AuthUser | null) => u?.role === 'admin' || u?.role === 'verifier';
+
+/**
+ * قفل محلي بعد محاولات دخول فاشلة متتالية (طبقة إضافية فوق حدود Supabase Auth على الخادم):
+ * 5 محاولات خاطئة خلال 5 دقائق ← انتظار دقيقة. يعيد الثواني المتبقية (0 = مسموح).
+ */
+export const LOGIN_MAX_FAILURES = 5;
+export function loginLockSeconds(failures: number[], now = Date.now()): number {
+  const recent = failures.filter((t) => now - t < 5 * 60_000);
+  if (recent.length < LOGIN_MAX_FAILURES) return 0;
+  return Math.max(0, Math.ceil((Math.max(...recent) + 60_000 - now) / 1000));
+}
+
+export type AuthErrorCode =
+  | 'invalid_credentials' | 'email_taken' | 'weak_password' | 'email_not_confirmed' | 'invalid_email' | 'rate_limited'
+  | 'invalid_phone' | 'invalid_code' | 'phone_unavailable' | 'unknown';
+
+export type AuthResult = { ok: true; needsConfirmation?: boolean; needsProfile?: boolean } | { ok: false; code: AuthErrorCode };
+
+/** واجهة مجردة فوق Supabase Auth لتسهيل الاختبار. */
+export interface AuthBackend {
+  current(): Promise<AuthUser | null>;
+  subscribe(cb: (u: AuthUser | null) => void): () => void;
+  signIn(email: string, password: string): Promise<AuthResult>;
+  signUp(fullName: string, email: string, password: string): Promise<AuthResult>;
+  signOut(): Promise<void>;
+  updateProfile(userId: string, patch: ProfilePatch): Promise<boolean>;
+  /** التسجيل/الدخول برقم الهاتف: يرسل رمز OTP برسالة نصية */
+  sendPhoneCode?(phone: string): Promise<AuthResult>;
+  /** يتحقق من الرمز؛ needsProfile = حساب جديد يحتاج الاسم والبريد */
+  verifyPhoneCode?(phone: string, code: string): Promise<AuthResult>;
+  /** يكمل الحساب: الاسم والبريد (يُرسل رابط تأكيد للبريد) */
+  completeProfile?(fullName: string, email: string): Promise<AuthResult>;
+}
+
+export interface ProfilePatch {
+  fullName?: string;
+  phone?: string;
+  preferredLocale?: 'ar' | 'en';
+}
+
+export type AuthStatus = 'loading' | 'signed_in' | 'signed_out' | 'not_configured';
+
+interface AuthContextValue {
+  status: AuthStatus;
+  user: AuthUser | null;
+  signIn: AuthBackend['signIn'];
+  signUp: AuthBackend['signUp'];
+  sendPhoneCode: (phone: string) => Promise<AuthResult>;
+  verifyPhoneCode: (phone: string, code: string) => Promise<AuthResult>;
+  completeProfile: (fullName: string, email: string) => Promise<AuthResult>;
+  signOut: () => Promise<void>;
+  updateProfile: (patch: ProfilePatch) => Promise<boolean>;
+  /** يعيد قراءة الملف الشخصي (مثلًا بعد تغيير الدور) */
+  refresh: () => Promise<void>;
+  /** وضع العرض التفاعلي: حسابات تجريبية محلية بلا كلمة مرور */
+  demo: boolean;
+  signInAs: (role: DemoRole) => Promise<void>;
+}
+
+const unavailable = async (): Promise<AuthResult> => ({ ok: false, code: 'unknown' });
+const AuthContext = createContext<AuthContextValue>({
+  status: 'loading',
+  user: null,
+  signIn: unavailable,
+  signUp: unavailable,
+  sendPhoneCode: unavailable,
+  verifyPhoneCode: unavailable,
+  completeProfile: unavailable,
+  signOut: async () => {},
+  updateProfile: async () => false,
+  refresh: async () => {},
+  demo: false,
+  signInAs: async () => {},
+});
+
+export function mapAuthError(e: { code?: string; status?: number; message?: string } | null | undefined): AuthErrorCode {
+  const code = e?.code ?? '';
+  if (code === 'invalid_credentials') return 'invalid_credentials';
+  if (code === 'user_already_exists' || code === 'email_exists') return 'email_taken';
+  if (code === 'weak_password') return 'weak_password';
+  if (code === 'email_not_confirmed') return 'email_not_confirmed';
+  if (code === 'email_address_invalid' || code === 'validation_failed') return 'invalid_email';
+  if (code.startsWith('over_') || e?.status === 429) return 'rate_limited';
+  if (code === 'otp_expired' || code === 'invalid_otp' || code === 'otp_disabled') return 'invalid_code';
+  if (code === 'validation_failed' && /phone/i.test(e?.message ?? '')) return 'invalid_phone';
+  if (code === 'sms_send_failed' || code === 'phone_provider_disabled') return 'phone_unavailable';
+  return 'unknown';
+}
+
+export function supabaseBackend(): AuthBackend | null {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+  type SbUser = { id: string; email?: string; user_metadata?: { full_name?: string } };
+  const toUser = async (u: SbUser | null | undefined): Promise<AuthUser | null> => {
+    if (!u) return null;
+    const { data } = await supabase.from('profiles').select('full_name,phone,role,phone_verified_at').eq('id', u.id).maybeSingle();
+    return {
+      id: u.id,
+      email: u.email ?? '',
+      fullName: data?.full_name ?? u.user_metadata?.full_name ?? undefined,
+      phone: data?.phone ?? undefined,
+      phoneVerified: !!data?.phone_verified_at,
+      role: (data?.role as UserRole | undefined) ?? 'user',
+    };
+  };
+  return {
+    async current() {
+      const { data } = await supabase.auth.getSession();
+      return toUser(data.session?.user);
+    },
+    subscribe(cb) {
+      // لا ننتظر داخل المستمع (توصية Supabase)؛ نقرأ الملف الشخصي بعده.
+      const { data } = supabase.auth.onAuthStateChange((_e, session) => {
+        setTimeout(() => toUser(session?.user).then(cb, () => cb(null)), 0);
+      });
+      return () => data.subscription.unsubscribe();
+    },
+    async updateProfile(userId, patch) {
+      const row: Record<string, string | null> = {};
+      if (patch.fullName !== undefined) row.full_name = patch.fullName.trim() || null;
+      if (patch.phone !== undefined) row.phone = patch.phone.trim() || null;
+      if (patch.preferredLocale) row.preferred_locale = patch.preferredLocale;
+      const { data, error } = await supabase.from('profiles').update(row).eq('id', userId).select('id');
+      return !error && (data?.length ?? 0) > 0;
+    },
+    async signIn(email, password) {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      return error ? { ok: false, code: mapAuthError(error) } : { ok: true };
+    },
+    async signUp(fullName, email, password) {
+      const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName } } });
+      if (error) return { ok: false, code: mapAuthError(error) };
+      // عند تفعيل تأكيد البريد لا تُنشأ جلسة حتى يضغط المستخدم الرابط.
+      return { ok: true, needsConfirmation: !data.session };
+    },
+    async signOut() {
+      await supabase.auth.signOut();
+    },
+    async sendPhoneCode(phone) {
+      const e164 = normalizeOmanMobile(phone);
+      if (!e164) return { ok: false, code: 'invalid_phone' };
+      // ينشئ الحساب إن لم يوجد؛ مزود الرسائل يُضبط في Supabase (Auth → Phone)
+      const { error } = await supabase.auth.signInWithOtp({ phone: e164, options: { shouldCreateUser: true } });
+      return error ? { ok: false, code: mapAuthError(error) } : { ok: true };
+    },
+    async verifyPhoneCode(phone, code) {
+      const e164 = normalizeOmanMobile(phone);
+      if (!e164) return { ok: false, code: 'invalid_phone' };
+      if (!/^[0-9]{6}$/.test(code.trim())) return { ok: false, code: 'invalid_code' };
+      const { data, error } = await supabase.auth.verifyOtp({ phone: e164, token: code.trim(), type: 'sms' });
+      if (error || !data.user) return { ok: false, code: error ? mapAuthError(error) : 'invalid_code' };
+      const u = await toUser(data.user);
+      return { ok: true, needsProfile: !u?.fullName || !data.user.email };
+    },
+    async completeProfile(fullName, email) {
+      if (!isValidEmail(email)) return { ok: false, code: 'invalid_email' };
+      const { data, error } = await supabase.auth.updateUser({ email: email.trim(), data: { full_name: fullName.trim() } });
+      if (error || !data.user) return { ok: false, code: mapAuthError(error) };
+      await supabase.from('profiles').update({ full_name: fullName.trim() }).eq('id', data.user.id);
+      // البريد الجديد يحتاج تأكيدًا من رابط يُرسل إليه
+      return { ok: true, needsConfirmation: data.user.email !== email.trim() };
+    },
+  };
+}
+
+export function AuthProvider({ children, backend }: { children: ReactNode; backend?: AuthBackend | 'demo' | null }) {
+  // 'demo' = حسابات العرض التفاعلي المحلية
+  const isDemo = backend === 'demo' || (backend === undefined && readConfig().useMockData);
+  const resolved = useMemo<AuthBackend | null>(() => {
+    if (backend === 'demo') return demoAuthBackend;
+    if (backend !== undefined) return backend;
+    const config = readConfig();
+    if (config.useMockData) return demoAuthBackend;
+    return isSupabaseConfigured(config) ? supabaseBackend() : null;
+  }, [backend]);
+
+  const [state, setState] = useState<{ status: AuthStatus; user: AuthUser | null }>(() =>
+    resolved ? { status: 'loading', user: null } : { status: 'not_configured', user: null },
+  );
+
+  useEffect(() => {
+    if (!resolved) return;
+    let active = true;
+    const apply = (u: AuthUser | null) => active && setState({ status: u ? 'signed_in' : 'signed_out', user: u });
+    resolved.current().then(apply).catch(() => apply(null));
+    const unsub = resolved.subscribe(apply);
+    return () => {
+      active = false;
+      unsub();
+    };
+  }, [resolved]);
+
+  const real = resolved;
+  const signIn = useCallback<AuthBackend['signIn']>((e, p) => (real ? real.signIn(e.trim(), p) : unavailable()), [real]);
+  const signUp = useCallback<AuthBackend['signUp']>((n, e, p) => (real ? real.signUp(n.trim(), e.trim(), p) : unavailable()), [real]);
+  const sendPhoneCode = useCallback((p: string) => (real?.sendPhoneCode ? real.sendPhoneCode(p) : unavailable()), [real]);
+  const verifyPhoneCode = useCallback((p: string, c: string) => (real?.verifyPhoneCode ? real.verifyPhoneCode(p, c) : unavailable()), [real]);
+  const completeProfile = useCallback(
+    async (n: string, e: string) => {
+      const r = real?.completeProfile ? await real.completeProfile(n, e) : await unavailable();
+      if (r.ok && real) setState({ status: 'signed_in', user: await real.current().catch(() => null) });
+      return r;
+    },
+    [real],
+  );
+  const signOut = useCallback(async () => {
+    await real?.signOut();
+  }, [real]);
+  const refresh = useCallback(async () => {
+    if (!real) return;
+    const u = await real.current().catch(() => null);
+    setState({ status: u ? 'signed_in' : 'signed_out', user: u });
+  }, [real]);
+  const userId = state.user?.id;
+  const updateProfile = useCallback(
+    async (patch: ProfilePatch) => {
+      if (!real || !userId) return false;
+      const ok = await real.updateProfile(userId, patch);
+      // تغيير اللغة لا يحتاج إعادة قراءة الملف الشخصي
+      if (ok && (patch.fullName !== undefined || patch.phone !== undefined)) await refresh();
+      return ok;
+    },
+    [real, userId, refresh],
+  );
+
+  const signInAs = useCallback(async (role: DemoRole) => {
+    if (isDemo) await demoAuthBackend.signInAs(role);
+  }, [isDemo]);
+
+  const value = useMemo(
+    () => ({ ...state, signIn, signUp, sendPhoneCode, verifyPhoneCode, completeProfile, signOut, updateProfile, refresh, demo: isDemo, signInAs }),
+    [state, signIn, signUp, sendPhoneCode, verifyPhoneCode, completeProfile, signOut, updateProfile, refresh, isDemo, signInAs],
+  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export const useAuth = () => useContext(AuthContext);
+
+// ---------- تحقق بسيط قبل الإرسال ----------
+export const isValidEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s.trim());
+export const MIN_PASSWORD = 8;
