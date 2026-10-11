@@ -26,6 +26,8 @@ export interface BedPickerScreenProps {
   createRequest?: (userId: string, req: BookingRequest) => Promise<CreateResult>;
   onRequireSignIn?: () => void;
   onViewBookings?: () => void;
+  /** يفتح شاشة التحقق من الهوية عند identity_required */
+  onRequireIdentity?: () => void;
 }
 
 export function BedPickerScreen({
@@ -37,6 +39,7 @@ export function BedPickerScreen({
   createRequest = createBookingRequest,
   onRequireSignIn = () => {},
   onViewBookings = () => {},
+  onRequireIdentity = () => {},
 }: BedPickerScreenProps) {
   const { t, locale } = useLocale();
   const auth = useAuth();
@@ -208,6 +211,7 @@ export function BedPickerScreen({
             outcome={outcome}
             onRequireSignIn={onRequireSignIn}
             onViewBookings={onViewBookings}
+            onRequireIdentity={onRequireIdentity}
             onSubmit={async () => {
               if (!located || !auth.user) return;
               setSending(true);
@@ -233,7 +237,9 @@ function RequestAction({
   onSubmit,
   onRequireSignIn,
   onViewBookings,
+  onRequireIdentity,
 }: {
+  onRequireIdentity: () => void;
   authStatus: ReturnType<typeof useAuth>['status'];
   hasSelection: boolean;
   sending: boolean;
@@ -269,6 +275,16 @@ function RequestAction({
       <Pressable style={styles.cta} accessibilityRole="button" onPress={onRequireSignIn} disabled={authStatus === 'loading'}>
         <Text style={styles.ctaText}>{t.beds.signInToBook}</Text>
       </Pressable>
+    );
+  }
+  if (outcome?.status === 'identity_required') {
+    return (
+      <View style={styles.sent} testID="identity-required">
+        <Text style={styles.sumLine}>{t.identity.required}</Text>
+        <Pressable style={styles.cta} accessibilityRole="button" onPress={onRequireIdentity} testID="go-identity">
+          <Text style={styles.ctaText}>{t.identity.verifyNow}</Text>
+        </Pressable>
+      </View>
     );
   }
   const error =

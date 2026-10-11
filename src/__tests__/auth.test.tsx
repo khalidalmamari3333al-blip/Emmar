@@ -40,6 +40,7 @@ describe('AccountScreen', () => {
   it('validates input before contacting the server', async () => {
     const signIn = jest.fn();
     await renderAccount(fakeAuthBackend(null, { signIn }));
+    await fireEvent.press(await screen.findByTestId('switch-auth-method'));
     await fireEvent.changeText(await screen.findByLabelText(t.auth.email), 'bad');
     await fireEvent.press(screen.getByTestId('auth-submit'));
     expect(screen.getByText(t.auth.invalidEmail)).toBeTruthy();
@@ -52,6 +53,7 @@ describe('AccountScreen', () => {
 
   it('shows the server error for wrong credentials', async () => {
     await renderAccount(fakeAuthBackend(null, { signIn: async () => ({ ok: false, code: 'invalid_credentials' }) }));
+    await fireEvent.press(await screen.findByTestId('switch-auth-method'));
     await fireEvent.changeText(await screen.findByLabelText(t.auth.email), 'me@example.com');
     await fireEvent.changeText(screen.getByLabelText(t.auth.password), 'password123');
     await fireEvent.press(screen.getByTestId('auth-submit'));
@@ -61,6 +63,7 @@ describe('AccountScreen', () => {
   it('signs up and tells the user to confirm their email', async () => {
     const signUp = jest.fn(async () => ({ ok: true as const, needsConfirmation: true }));
     await renderAccount(fakeAuthBackend(null, { signUp }));
+    await fireEvent.press(await screen.findByTestId('switch-auth-method'));
     await fireEvent.press(await screen.findByText(t.auth.toSignUp));
     await fireEvent.changeText(screen.getByLabelText(t.auth.fullName), 'سالم');
     await fireEvent.changeText(screen.getByLabelText(t.auth.email), 'salem@example.com');
@@ -74,7 +77,7 @@ describe('AccountScreen', () => {
     await renderAccount(fakeAuthBackend(STUDENT));
     expect(await screen.findByText(ltr(STUDENT.email))).toBeTruthy();
     await fireEvent.press(screen.getByText(t.auth.signOut));
-    expect(await screen.findByText(t.auth.signInTitle)).toBeTruthy();
+    expect(await screen.findByText(t.auth.phone.title)).toBeTruthy();
   });
 
   it('offers one-tap demo accounts in demo mode, kept on this device', async () => {

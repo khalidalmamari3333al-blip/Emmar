@@ -2,12 +2,12 @@
  * ⚠️ العقود في وضع العرض: في ذاكرة المتصفح فقط، بنفس قواعد قاعدة البيانات.
  * البصمة SHA-256 حقيقية على النص، لكن التوقيع تجريبي وليس قانونيًا.
  */
-import type { CResult } from '@/services/contracts';
+import type { CResult, LeaseRegistration, LeaseStatus } from '@/services/contracts';
 import { contractSha256, renderStudentContract } from '@/services/contractRender';
 import type { Contract, ContractStatus, ContractSummary } from '@/types/contract';
 
 import { scheduleFor, seedPaid } from './payments';
-import { audit, DEMO_USERS, demoState, findBed, newId, notifyChange } from './store';
+import { audit, DEMO_USERS, demoIdentityVerified, demoState, findBed, newId, notifyChange } from './store';
 
 const me = () => demoState().currentUserId;
 const isAdmin = () => demoState().users.find((u) => u.id === me())?.role === 'admin';
@@ -49,6 +49,12 @@ async function createFor(bookingId: string, actor: string): Promise<CResult<stri
   return { ok: true, data: id };
 }
 
+/** يحاكي open_lease_registration */
+function openLease(c: Contract) {
+  const city = demoState().properties.find((p) => p.id === c.propertyId)?.city;
+  demoState().leases[c.id] ??= { status: 'not_submitted', authority: city === 'muscat' ? 'muscat_municipality' : city === 'sohar' ? 'sohar_municipality' : 'other' };
+}
+
 /** عقد سالم (حجز مؤكد) بانتظار توقيعه — يُنشأ مرة واحدة لكل جلسة عرض. */
 async function seed() {
   const s = demoState();
@@ -70,6 +76,7 @@ async function seed() {
       );
       Object.assign(c, { status: 'completed', finalSha256: v.sha256, completedAt: at });
       scheduleFor(c);
+      openLease(c);
       const dues = s.payments.filter((p) => p.contractId === c.id && (p.kind !== 'rent' || p.seq <= 2));
       dues.forEach((p) => seedPaid(p.id));
     }
@@ -117,6 +124,7 @@ export const demoContracts = {
     if (!c || (me() !== c.tenantId && me() !== c.landlordId)) return denied;
     const role = me() === c.tenantId ? 'tenant' : 'landlord';
     if ((role === 'tenant' && c.status !== 'pending_tenant') || (role === 'landlord' && c.status !== 'pending_landlord')) return { ok: false, code: 'not_your_turn' };
+    if (!demoIdentityVerified(me())) return { ok: false, code: 'identity_required' };
     const v = c.versions.find((x) => x.versionNo === c.currentVersion)!;
     if (sha256 !== v.sha256) return { ok: false, code: 'fingerprint_mismatch' };
     c.signatures.push({ versionNo: v.versionNo, signerId: me()!, role, provider: 'mock_sign', isMock: true, signedSha256: sha256, signedAt: now() });
@@ -124,10 +132,34 @@ export const demoContracts = {
     else {
       Object.assign(c, { status: 'completed', finalSha256: v.sha256, completedAt: now() });
       scheduleFor(c);
+      openLease(c);
     }
     audit('contract.signed', 'contract', id, { role, version: v.versionNo, sha256, provider: 'mock_sign' });
     notifyChange();
     return { ok: true, data: c.status };
+  },
+  lease(contractId: string): CResult<LeaseRegistration | null> {
+    const c = demoState().contracts.find((x) => x.id === contractId);
+    const l = demoState().leases[contractId];
+    if (!c || !party(c) || !l) return { ok: true, data: null };
+    return { ok: true, data: { contractId, method: 'manual', ...l } as LeaseRegistration };
+  },
+  /** نفس قواعد update_lease_registration */
+  updateLease(contractId: string, status: LeaseStatus, reference?: string, notes?: string): CResult {
+    const c = demoState().contracts.find((x) => x.id === contractId);
+    const l = demoState().leases[contractId];
+    if (!c || !l || !(me() === c.landlordId || isAdmin())) return denied;
+    if ((status === 'registered' || status === 'rejected') && !isAdmin()) return denied;
+    const ok =
+      ((l.status === 'not_submitted' || l.status === 'rejected') && status === 'preparing') ||
+      (['not_submitted', 'preparing', 'rejected'].includes(l.status) && status === 'submitted') ||
+      (l.status === 'submitted' && (status === 'registered' || status === 'rejected'));
+    if (!ok) return { ok: false, code: 'error' };
+    if (status === 'submitted' && !(reference?.trim() || l.referenceNo)) return { ok: false, code: 'reason_required' };
+    Object.assign(l, { status, referenceNo: reference?.trim() || l.referenceNo, notes: notes?.trim() || l.notes });
+    audit(`lease.${status}`, 'contract', contractId, { reference });
+    notifyChange();
+    return { ok: true, data: undefined };
   },
   async cancel(id: string, reason: string): Promise<CResult> {
     const c = demoState().contracts.find((x) => x.id === id);

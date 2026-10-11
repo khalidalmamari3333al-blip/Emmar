@@ -12,11 +12,12 @@ import type { Contract, ContractStatus, ContractSummary, SignerRole } from '@/ty
 
 const demo = () => readConfig().useMockData;
 
-export type ContractError = 'not_configured' | 'not_allowed' | 'not_your_turn' | 'fingerprint_mismatch' | 'not_confirmed' | 'already_exists' | 'unchanged' | 'reason_required' | 'error';
+export type ContractError = 'identity_required' | 'not_configured' | 'not_allowed' | 'not_your_turn' | 'fingerprint_mismatch' | 'not_confirmed' | 'already_exists' | 'unchanged' | 'reason_required' | 'error';
 export type CResult<T = void> = { ok: true; data: T } | { ok: false; code: ContractError; message?: string };
 
 function fail(e: { code?: string; message: string }): CResult<never> {
   const m = e.message;
+  if (e.code === 'ID001') return { ok: false, code: 'identity_required', message: m };
   if (e.code === '23505') return { ok: false, code: 'already_exists', message: m };
   if (/fingerprint/i.test(m)) return { ok: false, code: 'fingerprint_mismatch', message: m };
   if (/not your turn/i.test(m)) return { ok: false, code: 'not_your_turn', message: m };
@@ -148,4 +149,42 @@ export function myRole(c: ContractSummary, userId?: string): SignerRole | null {
 export function canSign(c: ContractSummary, userId?: string): boolean {
   const r = myRole(c, userId);
   return (r === 'tenant' && c.status === 'pending_tenant') || (r === 'landlord' && c.status === 'pending_landlord');
+}
+
+// ---------- التسجيل الرسمي لدى البلدية (منفصل عن التوقيع) ----------
+
+export type LeaseStatus = 'not_submitted' | 'preparing' | 'submitted' | 'registered' | 'rejected';
+export interface LeaseRegistration {
+  contractId: string;
+  authority: 'muscat_municipality' | 'sohar_municipality' | 'other';
+  method: 'manual' | 'api';
+  status: LeaseStatus;
+  referenceNo?: string;
+  notes?: string;
+  submittedAt?: string;
+  registeredAt?: string;
+}
+
+export function getLeaseRegistration(contractId: string): Promise<CResult<LeaseRegistration | null>> {
+  if (demo()) return Promise.resolve(demoContracts.lease(contractId));
+  return guard(async (sb) => {
+    const { data, error } = await sb.from('lease_registrations').select('*').eq('contract_id', contractId).maybeSingle();
+    if (error) return fail(error);
+    type Row = { contract_id: string; authority: LeaseRegistration['authority']; method: 'manual' | 'api'; status: LeaseStatus; reference_no: string | null; notes: string | null; submitted_at: string | null; registered_at: string | null };
+    const r = data as Row | null;
+    return {
+      ok: true,
+      data: r ? { contractId: r.contract_id, authority: r.authority, method: r.method, status: r.status, referenceNo: r.reference_no ?? undefined, notes: r.notes ?? undefined, submittedAt: r.submitted_at ?? undefined, registeredAt: r.registered_at ?? undefined } : null,
+    };
+  });
+}
+
+/** المالك: preparing / submitted (مع رقم المرجع). فريق المنصة: registered / rejected. */
+export function updateLeaseRegistration(contractId: string, status: LeaseStatus, reference?: string, notes?: string): Promise<CResult> {
+  if (status === 'submitted' && !reference?.trim()) return Promise.resolve({ ok: false, code: 'reason_required' });
+  if (demo()) return Promise.resolve(demoContracts.updateLease(contractId, status, reference, notes));
+  return guard(async (sb) => {
+    const { error } = await sb.rpc('update_lease_registration', { p_contract: contractId, p_status: status, p_reference: reference ?? null, p_notes: notes ?? null });
+    return error ? fail(error) : { ok: true, data: undefined };
+  });
 }

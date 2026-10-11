@@ -29,6 +29,7 @@ export type CreateResult =
   | { status: 'conflict' } // سبق أحدٌ إلى السرير لنفس الفترة
   | { status: 'not_allowed' }
   | { status: 'rate_limited' } // حد الطلبات في الساعة (rl_bookings)
+  | { status: 'identity_required' } // التحقق من الهوية مطلوب قبل الحجز (identity_gate)
   | { status: 'demo' }
   | { status: 'not_configured' }
   | { status: 'error'; message: string };
@@ -142,6 +143,7 @@ export async function createBookingRequest(userId: string, req: BookingRequest, 
     if (error?.code === PG_EXCLUSION_VIOLATION) return { status: 'conflict' };
     if (error?.code === PG_INSUFFICIENT_PRIVILEGE) return { status: 'not_allowed' };
     if (error?.code === 'RL001') return { status: 'rate_limited' };
+    if (error?.code === 'ID001') return { status: 'identity_required' };
     if (error || !id) return { status: 'error', message: error?.message ?? 'no id returned' };
     return { status: 'ok', id };
   } catch (e) {

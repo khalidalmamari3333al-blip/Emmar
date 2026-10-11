@@ -37,7 +37,16 @@ export interface DemoUser {
   email: string;
   fullName: string;
   phone?: string;
+  phoneVerified?: boolean;
   role: DemoUserRole;
+}
+
+/** هوية موثّقة في العرض (مزود تجريبي — لا ربط مع «ثقة») */
+export interface DemoIdentity {
+  provider: 'mock_theqa' | 'manual_document';
+  verifiedName: string;
+  last4: string;
+  verifiedAt: string;
 }
 
 export interface DemoImage {
@@ -137,6 +146,8 @@ interface State {
   payments: Payment[];
   maintenance: MaintenanceRequest[];
   privacy: PrivacyRequest[];
+  identities: Record<string, DemoIdentity>;
+  leases: Record<string, { status: 'not_submitted' | 'preparing' | 'submitted' | 'registered' | 'rejected'; authority: string; referenceNo?: string; notes?: string }>;
   reports: (PropertyReport & { reporterId: string })[];
   reviews: (PublicReview & { bookingId: string; propertyId: string; tenantId: string })[];
   paymentTx: { providerRef: string; paymentId: string; type: 'charge' | 'refund'; amountOmr: number; status: 'initiated' | 'succeeded' | 'failed'; createdBy: string }[];
@@ -187,7 +198,7 @@ function seed(now = Date.now()): State {
     monthlyPriceOmr: 50,
     createdAt: iso(now - 30 * 864e5),
   }));
-  const s: State = { users, properties, layouts, bookings, notifications: [], audit: [], verifications: [], landlords: [], contracts: [], payments: [], paymentTx: [], maintenance: [], privacy: [], reports: [], reviews: [], contractsSeeded: false, currentUserId: null, seq: 1 };
+  const s: State = { users, properties, layouts, bookings, notifications: [], audit: [], verifications: [], landlords: [], contracts: [], payments: [], paymentTx: [], maintenance: [], privacy: [], identities: {}, leases: {}, reports: [], reviews: [], contractsSeeded: false, currentUserId: null, seq: 1 };
   state = s;
   // طلبان جديدان بانتظار المالك + حجز مؤكد للطالب، حتى لا تبدو اللوحات فارغة
   createBooking('demo-reem', { bedId: 'Y-103-b1', start: '2026-11-01', end: '2027-03-01' }, now - 3 * 3600e3);
@@ -196,6 +207,12 @@ function seed(now = Date.now()): State {
   if (salem.status === 'ok') decide(DEMO_USERS.owner, salem.id, 'confirmed', now - 864e5);
 
   seedPostStay(s, now, salem.status === 'ok' ? salem.id : undefined);
+  // الحسابات التجريبية الأساسية موثّقة الهوية (مزود تجريبي) وهواتفها مؤكدة
+  for (const [id, last4] of [[DEMO_USERS.tenant, '4417'], [DEMO_USERS.owner, '0921'], [DEMO_USERS.admin, '1100'], [DEMO_USERS.verifier, '5530']] as const) {
+    const u = s.users.find((x) => x.id === id)!;
+    u.phoneVerified = !!u.phone;
+    s.identities[id] = { provider: 'mock_theqa', verifiedName: u.fullName, last4, verifiedAt: iso(now - 40 * 864e5) };
+  }
 
   // المالك التجريبي موثّق، وطلب توثيق واحد بانتظار فريق التحقق
   s.landlords.push({ userId: DEMO_USERS.owner, accountType: 'individual', legalName: 'خالد المعمري', verificationStatus: 'verified' });
@@ -365,3 +382,6 @@ function seedPostStay(s: State, now: number, salemBooking?: string) {
   }
   s.reports.push({ id: 'rep-1', propertyId: 'mock-5', reporterId: 'demo-reem', reason: 'wrong_info', details: 'المساحة المذكورة أكبر من الواقع.', status: 'open', createdAt: iso(now - 26 * 3600e3) });
 }
+
+/** يحاكي require_identity في قاعدة البيانات */
+export const demoIdentityVerified = (userId: string | null | undefined) => !!userId && !!demoState().identities[userId];

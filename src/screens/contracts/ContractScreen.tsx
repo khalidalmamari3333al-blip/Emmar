@@ -10,6 +10,8 @@ import { ltr } from '@/lib/bidi';
 import { contractSha256 } from '@/services/contractRender';
 import { cancelContract, canSign, CResult, getContract, myRole, reviseContract, signContract } from '@/services/contracts';
 import { colors, font, fonts, radius, spacing } from '@/theme';
+
+import { LeaseSection } from './LeaseSection';
 import type { Contract, ContractStatus } from '@/types/contract';
 
 export interface ContractServices {
@@ -32,7 +34,17 @@ export function MockSignatureBanner() {
   );
 }
 
-export function ContractScreen({ id, services = defaults, onBack }: { id: string; services?: ContractServices; onBack?: () => void }) {
+export function ContractScreen({
+  id,
+  services = defaults,
+  onBack,
+  onRequireIdentity,
+}: {
+  id: string;
+  services?: ContractServices;
+  onBack?: () => void;
+  onRequireIdentity?: () => void;
+}) {
   const { t, locale } = useLocale();
   const c = t.contracts;
   const auth = useAuth();
@@ -68,12 +80,14 @@ export function ContractScreen({ id, services = defaults, onBack }: { id: string
   }, [version]);
 
   const errText = (code: string) =>
-    code === 'fingerprint_mismatch' ? c.fingerprintMismatch : code === 'not_your_turn' ? c.notYourTurn : code === 'unchanged' ? c.unchanged : code === 'reason_required' ? t.verification.reasonRequired : c.failed;
+    code === 'identity_required' ? t.identity.required : code === 'fingerprint_mismatch' ? c.fingerprintMismatch : code === 'not_your_turn' ? c.notYourTurn : code === 'unchanged' ? c.unchanged : code === 'reason_required' ? t.verification.reasonRequired : c.failed;
 
+  const [needsIdentity, setNeedsIdentity] = useState(false);
   const act = async <T,>(fn: () => Promise<CResult<T>>, success: (d: T) => string) => {
     setBusy(true);
     setMsg(null);
     const r = await fn();
+    setNeedsIdentity(!r.ok && r.code === 'identity_required');
     setBusy(false);
     setConfirming(false);
     setMsg(r.ok ? { text: success(r.data), tone: 'success' } : { text: errText(r.code), tone: 'error' });
@@ -134,6 +148,9 @@ export function ContractScreen({ id, services = defaults, onBack }: { id: string
             {open && !canSign(contract, auth.user?.id) && role && <Notice text={c.waitingOther} />}
 
             {msg && <Notice text={msg.text} tone={msg.tone} />}
+            {needsIdentity && onRequireIdentity && <Button label={t.identity.verifyNow} onPress={onRequireIdentity} variant="secondary" testID="go-identity" />}
+            {open && <Notice text={t.lease.signatureProvider} />}
+            {contract.status === 'completed' && <LeaseSection contractId={contract.id} role={auth.user?.role === 'admin' ? 'admin' : role} />}
             {canSign(contract, auth.user?.id) && (
               <>
                 {confirming && <Notice text={c.confirmSign} />}

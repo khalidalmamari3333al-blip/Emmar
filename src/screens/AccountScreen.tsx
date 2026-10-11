@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AuthForm } from '@/components/AuthForm';
+import { AuthForm, CompleteProfileCard } from '@/components/AuthForm';
+import { getMyIdentity, MyIdentity } from '@/services/identity';
 import { CrenellationDivider } from '@/components/omani/CrenellationDivider';
 import { Button, Field, Notice } from '@/components/ui';
 import { Locale, useLocale } from '@/i18n';
@@ -22,6 +23,7 @@ export function AccountScreen({
   onOpenPayments = () => {},
   onOpenMaintenance = () => {},
   onOpenPrivacy = () => {},
+  onOpenIdentity = () => {},
 }: {
   onOpenOwner?: () => void;
   onOpenAdmin?: () => void;
@@ -30,6 +32,7 @@ export function AccountScreen({
   onOpenPayments?: () => void;
   onOpenMaintenance?: () => void;
   onOpenPrivacy?: () => void;
+  onOpenIdentity?: () => void;
 } = {}) {
   const { t, locale, setLocale } = useLocale();
   const auth = useAuth();
@@ -42,12 +45,20 @@ export function AccountScreen({
         <View style={styles.card}>
           <Text style={styles.hintStart}>{t.auth.signedInAs}</Text>
           {auth.user.fullName ? <Text style={styles.h2}>{auth.user.fullName}</Text> : null}
-          <Text style={styles.email}>{ltr(auth.user.email)}</Text>
+          {auth.user.email ? <Text style={styles.email}>{ltr(auth.user.email)}</Text> : null}
+          {auth.user.phone ? (
+            <Text style={styles.email}>
+              {ltr(auth.user.phone)}
+              {auth.user.phoneVerified ? `  ✓ ${t.identity.phoneVerified}` : ''}
+            </Text>
+          ) : null}
           <Pressable onPress={() => unregisterDevice().finally(auth.signOut)} accessibilityRole="button" style={styles.signOut}>
             <Text style={styles.signOutText}>{t.auth.signOut}</Text>
           </Pressable>
         </View>
       )}
+      {auth.status === 'signed_in' && auth.user && (!auth.user.fullName || !auth.user.email) && <CompleteProfileCard />}
+      {auth.status === 'signed_in' && auth.user && <IdentityCard onOpen={onOpenIdentity} />}
       {auth.status === 'signed_in' && auth.user && (
         <>
           {isOwnerRole(auth.user) && <Button label={t.owner.openDashboard} onPress={onOpenOwner} testID="open-owner" />}
@@ -61,7 +72,8 @@ export function AccountScreen({
           {auth.demo ? <DemoAccounts /> : <PushCard />}
         </>
       )}
-      {auth.status === 'signed_out' && (auth.demo ? <DemoAccounts /> : <AuthForm />)}
+      {auth.status === 'signed_out' && <AuthForm />}
+      {auth.status === 'signed_out' && auth.demo && <DemoAccounts />}
       {auth.status === 'not_configured' && <Text style={styles.hint}>{t.notConfigured}</Text>}
 
       <View style={{ height: spacing.md }} />
@@ -158,6 +170,30 @@ function PushCard() {
           }}
         />
       )}
+    </View>
+  );
+}
+
+/** حالة التحقق من الهوية — مطلوبة فقط قبل الحجز أو التوقيع أو توثيق عقار. */
+function IdentityCard({ onOpen }: { onOpen: () => void }) {
+  const { t } = useLocale();
+  const auth = useAuth();
+  const [identity, setIdentity] = useState<MyIdentity | null | undefined>(undefined);
+  const uid = auth.user?.id;
+  useEffect(() => {
+    if (!uid) return;
+    let active = true;
+    getMyIdentity().then((r) => active && setIdentity(r.ok ? r.data : null));
+    return () => {
+      active = false;
+    };
+  }, [uid]);
+  if (identity === undefined) return null;
+  return (
+    <View style={styles.card} testID="identity-card">
+      <Text style={styles.h2}>{t.identity.title}</Text>
+      <Text style={styles.hintStart}>{identity ? `${t.identity.verified} · ${t.identity.verifiedVia[identity.provider]}` : t.identity.notVerified}</Text>
+      {!identity && <Button small variant="secondary" label={t.identity.verifyNow} onPress={onOpen} testID="open-identity" />}
     </View>
   );
 }

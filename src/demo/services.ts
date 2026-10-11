@@ -3,6 +3,7 @@
  * نفس واجهات الخدمات الحقيقية حتى تعمل الشاشات كما هي.
  */
 import type { LocalizedText } from '@/i18n/types';
+import { normalizeOmanMobile } from '@/lib/phone';
 import type { AuthBackend, AuthUser } from '@/lib/auth';
 import type { MyBooking } from '@/services/bookings';
 import type { AppNotification, NotificationsBackend } from '@/services/notifications';
@@ -10,9 +11,10 @@ import type { AdminUser, AuditEntry, ImageAsset, OwnerImage, OwnerProperty, Owne
 import type { Availability, BuildingLayout } from '@/types/layout';
 import type { City, ListingStatus, PropertyDetail, PropertySummary, SearchFilters } from '@/types/property';
 
-import { audit, bedIsFree, createBooking, decide, DEMO_USERS, DemoProperty, DemoRole, demoState, findBed, newId, notifyChange, setCurrentUser, subscribe } from './store';
+import { audit, demoIdentityVerified, bedIsFree, createBooking, decide, DEMO_USERS, DemoProperty, DemoRole, demoState, findBed, newId, notifyChange, setCurrentUser, subscribe } from './store';
 
 const ok = <T,>(data: T): Result<T> => ({ ok: true, data });
+export const DEMO_OTP = '123456';
 const me = () => demoState().currentUserId;
 
 // ---------------------------------------------------------------------
@@ -21,7 +23,7 @@ const me = () => demoState().currentUserId;
 
 const toAuthUser = (id: string | null): AuthUser | null => {
   const u = id ? demoState().users.find((x) => x.id === id) : null;
-  return u ? { id: u.id, email: u.email, fullName: u.fullName, phone: u.phone, role: u.role } : null;
+  return u ? { id: u.id, email: u.email, fullName: u.fullName || undefined, phone: u.phone, phoneVerified: !!u.phoneVerified, role: u.role } : null;
 };
 
 export const demoAuthBackend: AuthBackend & { signInAs(role: DemoRole): Promise<void> } = {
@@ -54,6 +56,32 @@ export const demoAuthBackend: AuthBackend & { signInAs(role: DemoRole): Promise<
     if (patch.phone !== undefined) u.phone = patch.phone.trim() || undefined;
     notifyChange();
     return true;
+  },
+  async sendPhoneCode(phone) {
+    return normalizeOmanMobile(phone) ? { ok: true } : { ok: false, code: 'invalid_phone' };
+  },
+  /** في العرض الرمز ثابت 123456 (لا رسائل فعلية) */
+  async verifyPhoneCode(phone, code) {
+    const e164 = normalizeOmanMobile(phone);
+    if (!e164) return { ok: false, code: 'invalid_phone' };
+    if (code.trim() !== DEMO_OTP) return { ok: false, code: 'invalid_code' };
+    const same = (p?: string) => (p ? normalizeOmanMobile(p) === e164 : false);
+    let u = demoState().users.find((x) => same(x.phone));
+    if (!u) {
+      u = { id: newId('u'), email: '', fullName: '', phone: e164, phoneVerified: true, role: 'user' };
+      demoState().users.push(u);
+    }
+    u.phoneVerified = true;
+    setCurrentUser(u.id);
+    return { ok: true, needsProfile: !u.fullName || !u.email };
+  },
+  async completeProfile(fullName, email) {
+    const u = demoState().users.find((x) => x.id === me());
+    if (!u) return { ok: false, code: 'unknown' };
+    if (demoState().users.some((x) => x.id !== u.id && x.email.toLowerCase() === email.trim().toLowerCase())) return { ok: false, code: 'email_taken' };
+    Object.assign(u, { fullName: fullName.trim(), email: email.trim() });
+    notifyChange();
+    return { ok: true, needsConfirmation: false };
   },
   async signInAs(role) {
     setCurrentUser(DEMO_USERS[role === 'user' ? 'tenant' : role]);
@@ -113,7 +141,8 @@ function bookingView(id: string): Omit<MyBooking, 'id' | 'status' | 'start' | 'e
 }
 
 export const demoBookings = {
-  create: (userId: string, req: { bedId: string; start: string; end: string }) => createBooking(userId, req),
+  create: (userId: string, req: { bedId: string; start: string; end: string }) =>
+    demoIdentityVerified(userId) ? createBooking(userId, req) : ({ status: 'identity_required' } as const),
   listMine: (userId: string): MyBooking[] =>
     demoState()
       .bookings.filter((b) => b.userId === userId)

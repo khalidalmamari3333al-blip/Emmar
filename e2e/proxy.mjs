@@ -8,6 +8,7 @@ const routes = [
   ['/functions/v1/assistant', 'http://localhost:8000'],
   ['/functions/v1/payments', 'http://localhost:8001'],
   ['/functions/v1/privacy', 'http://localhost:8002'],
+  ['/functions/v1/identity', 'http://localhost:8003'],
 ];
 
 http

@@ -6,7 +6,7 @@ import type { LandlordProfile, VResult } from '@/services/verification';
 import { canApprove, evaluateRules } from '@/services/verificationRules';
 import type { DeclaredData, Decision, DocType, QueueItem, RequestStatus, VerificationRequest, VerificationSubject } from '@/types/verification';
 
-import { audit, DemoVerification, demoState, newId, notifyChange } from './store';
+import { audit, demoIdentityVerified, DemoVerification, demoState, newId, notifyChange } from './store';
 
 const ok = <T,>(data: T): VResult<T> => ({ ok: true, data });
 const denied = { ok: false as const, code: 'not_allowed' as const };
@@ -136,6 +136,7 @@ export const demoVerification = {
   submit(id: string): VResult<VerificationRequest['automatedStatus']> {
     const v = demoState().verifications.find((x) => x.id === id);
     if (!v || !editable(v)) return denied;
+    if (v.subject === 'property' && !demoIdentityVerified(me())) return { ok: false, code: 'identity_required' };
     const r = runChecks(v);
     Object.assign(v, { checks: r.checks, automatedStatus: r.automated, officialStatus: r.official, status: 'submitted', humanStatus: 'pending', submittedAt: now() });
     setSubjectStatus(v, 'pending');

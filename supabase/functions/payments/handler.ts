@@ -73,7 +73,7 @@ export async function handle(req: Request, env: PaymentsEnv): Promise<Response> 
   } catch {
     return json(400, { error: 'invalid_request' });
   }
-  const mock = (env.mode ?? 'mock') === 'mock';
+  const mock = env.mode === 'mock'; // المزود التجريبي يجب تفعيله صراحةً
 
   if (body.action === 'checkout' || body.action === 'refund') {
     if (!mock) return json(503, { error: 'provider_not_configured' });

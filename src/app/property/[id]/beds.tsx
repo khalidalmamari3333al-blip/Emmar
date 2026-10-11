@@ -10,6 +10,7 @@ export default function BedsRoute() {
       onBack={() => (router.canGoBack() ? router.back() : router.replace(`/property/${id}`))}
       onRequireSignIn={() => router.push('/account')}
       onViewBookings={() => router.replace('/bookings')}
+      onRequireIdentity={() => router.push('/identity')}
     />
   );
 }

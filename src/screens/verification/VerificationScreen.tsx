@@ -49,9 +49,10 @@ export interface VerificationScreenProps {
   services?: VerificationServices;
   pickDocument?: () => Promise<svc.PickedDocument | null>;
   onBack?: () => void;
+  onRequireIdentity?: () => void;
 }
 
-export function VerificationScreen({ subject, propertyId, services = defaultVerificationServices, pickDocument = pickDocumentFromDevice, onBack }: VerificationScreenProps) {
+export function VerificationScreen({ subject, propertyId, services = defaultVerificationServices, pickDocument = pickDocumentFromDevice, onBack, onRequireIdentity }: VerificationScreenProps) {
   const { t, locale } = useLocale();
   const v = t.verification;
   const auth = useAuth();
@@ -96,7 +97,7 @@ export function VerificationScreen({ subject, propertyId, services = defaultVeri
   }, [signedIn, services, subject, propertyId, reload]);
 
   const errText = (code: svc.VerificationError) =>
-    code === 'bad_type' ? v.badType : code === 'too_large' ? v.tooLarge : code === 'not_allowed' ? t.owner.notAllowed : code === 'invalid' ? t.owner.fixErrors : code === 'rate_limited' ? t.rateLimited : v.failed;
+    code === 'bad_type' ? v.badType : code === 'too_large' ? v.tooLarge : code === 'not_allowed' ? t.owner.notAllowed : code === 'invalid' ? t.owner.fixErrors : code === 'rate_limited' ? t.rateLimited : code === 'identity_required' ? t.identity.required : v.failed;
 
   const act = async (fn: () => Promise<svc.VResult<unknown>>, success?: string) => {
     setBusy(true);
@@ -204,6 +205,7 @@ export function VerificationScreen({ subject, propertyId, services = defaultVeri
             )}
 
             {msg && <Notice text={msg.text} tone={msg.tone} />}
+            {msg?.text === t.identity.required && onRequireIdentity && <Button label={t.identity.verifyNow} onPress={onRequireIdentity} variant="secondary" testID="go-identity" />}
             {editable && <Button label={req.status === 'needs_info' ? v.resubmit : v.submit} onPress={submit} busy={busy} testID="submit-verification" />}
             {req && !editable && req.documents.length > 0 && (
               <View style={part.card}>

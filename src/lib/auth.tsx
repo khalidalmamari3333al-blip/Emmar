@@ -3,6 +3,7 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 import { demoAuthBackend } from '@/demo/services';
 import type { DemoRole } from '@/demo/store';
 import { isSupabaseConfigured, readConfig } from '@/lib/config';
+import { normalizeOmanMobile } from '@/lib/phone';
 import { getSupabase } from '@/lib/supabase';
 
 export type UserRole = 'user' | 'owner' | 'admin' | 'verifier' | 'support';
@@ -12,6 +13,8 @@ export interface AuthUser {
   email: string;
   fullName?: string;
   phone?: string;
+  /** الهاتف مؤكَّد برمز OTP */
+  phoneVerified?: boolean;
   /** من جدول profiles؛ يُستخدم لإظهار اللوحات فقط — الحماية الفعلية في RLS. */
   role: UserRole;
 }
@@ -32,9 +35,11 @@ export function loginLockSeconds(failures: number[], now = Date.now()): number {
   return Math.max(0, Math.ceil((Math.max(...recent) + 60_000 - now) / 1000));
 }
 
-export type AuthErrorCode = 'invalid_credentials' | 'email_taken' | 'weak_password' | 'email_not_confirmed' | 'invalid_email' | 'rate_limited' | 'unknown';
+export type AuthErrorCode =
+  | 'invalid_credentials' | 'email_taken' | 'weak_password' | 'email_not_confirmed' | 'invalid_email' | 'rate_limited'
+  | 'invalid_phone' | 'invalid_code' | 'phone_unavailable' | 'unknown';
 
-export type AuthResult = { ok: true; needsConfirmation?: boolean } | { ok: false; code: AuthErrorCode };
+export type AuthResult = { ok: true; needsConfirmation?: boolean; needsProfile?: boolean } | { ok: false; code: AuthErrorCode };
 
 /** واجهة مجردة فوق Supabase Auth لتسهيل الاختبار. */
 export interface AuthBackend {
@@ -44,6 +49,12 @@ export interface AuthBackend {
   signUp(fullName: string, email: string, password: string): Promise<AuthResult>;
   signOut(): Promise<void>;
   updateProfile(userId: string, patch: ProfilePatch): Promise<boolean>;
+  /** التسجيل/الدخول برقم الهاتف: يرسل رمز OTP برسالة نصية */
+  sendPhoneCode?(phone: string): Promise<AuthResult>;
+  /** يتحقق من الرمز؛ needsProfile = حساب جديد يحتاج الاسم والبريد */
+  verifyPhoneCode?(phone: string, code: string): Promise<AuthResult>;
+  /** يكمل الحساب: الاسم والبريد (يُرسل رابط تأكيد للبريد) */
+  completeProfile?(fullName: string, email: string): Promise<AuthResult>;
 }
 
 export interface ProfilePatch {
@@ -59,6 +70,9 @@ interface AuthContextValue {
   user: AuthUser | null;
   signIn: AuthBackend['signIn'];
   signUp: AuthBackend['signUp'];
+  sendPhoneCode: (phone: string) => Promise<AuthResult>;
+  verifyPhoneCode: (phone: string, code: string) => Promise<AuthResult>;
+  completeProfile: (fullName: string, email: string) => Promise<AuthResult>;
   signOut: () => Promise<void>;
   updateProfile: (patch: ProfilePatch) => Promise<boolean>;
   /** يعيد قراءة الملف الشخصي (مثلًا بعد تغيير الدور) */
@@ -74,6 +88,9 @@ const AuthContext = createContext<AuthContextValue>({
   user: null,
   signIn: unavailable,
   signUp: unavailable,
+  sendPhoneCode: unavailable,
+  verifyPhoneCode: unavailable,
+  completeProfile: unavailable,
   signOut: async () => {},
   updateProfile: async () => false,
   refresh: async () => {},
@@ -89,6 +106,9 @@ export function mapAuthError(e: { code?: string; status?: number; message?: stri
   if (code === 'email_not_confirmed') return 'email_not_confirmed';
   if (code === 'email_address_invalid' || code === 'validation_failed') return 'invalid_email';
   if (code.startsWith('over_') || e?.status === 429) return 'rate_limited';
+  if (code === 'otp_expired' || code === 'invalid_otp' || code === 'otp_disabled') return 'invalid_code';
+  if (code === 'validation_failed' && /phone/i.test(e?.message ?? '')) return 'invalid_phone';
+  if (code === 'sms_send_failed' || code === 'phone_provider_disabled') return 'phone_unavailable';
   return 'unknown';
 }
 
@@ -98,12 +118,13 @@ export function supabaseBackend(): AuthBackend | null {
   type SbUser = { id: string; email?: string; user_metadata?: { full_name?: string } };
   const toUser = async (u: SbUser | null | undefined): Promise<AuthUser | null> => {
     if (!u) return null;
-    const { data } = await supabase.from('profiles').select('full_name,phone,role').eq('id', u.id).maybeSingle();
+    const { data } = await supabase.from('profiles').select('full_name,phone,role,phone_verified_at').eq('id', u.id).maybeSingle();
     return {
       id: u.id,
       email: u.email ?? '',
       fullName: data?.full_name ?? u.user_metadata?.full_name ?? undefined,
       phone: data?.phone ?? undefined,
+      phoneVerified: !!data?.phone_verified_at,
       role: (data?.role as UserRole | undefined) ?? 'user',
     };
   };
@@ -140,6 +161,30 @@ export function supabaseBackend(): AuthBackend | null {
     async signOut() {
       await supabase.auth.signOut();
     },
+    async sendPhoneCode(phone) {
+      const e164 = normalizeOmanMobile(phone);
+      if (!e164) return { ok: false, code: 'invalid_phone' };
+      // ينشئ الحساب إن لم يوجد؛ مزود الرسائل يُضبط في Supabase (Auth → Phone)
+      const { error } = await supabase.auth.signInWithOtp({ phone: e164, options: { shouldCreateUser: true } });
+      return error ? { ok: false, code: mapAuthError(error) } : { ok: true };
+    },
+    async verifyPhoneCode(phone, code) {
+      const e164 = normalizeOmanMobile(phone);
+      if (!e164) return { ok: false, code: 'invalid_phone' };
+      if (!/^[0-9]{6}$/.test(code.trim())) return { ok: false, code: 'invalid_code' };
+      const { data, error } = await supabase.auth.verifyOtp({ phone: e164, token: code.trim(), type: 'sms' });
+      if (error || !data.user) return { ok: false, code: error ? mapAuthError(error) : 'invalid_code' };
+      const u = await toUser(data.user);
+      return { ok: true, needsProfile: !u?.fullName || !data.user.email };
+    },
+    async completeProfile(fullName, email) {
+      if (!isValidEmail(email)) return { ok: false, code: 'invalid_email' };
+      const { data, error } = await supabase.auth.updateUser({ email: email.trim(), data: { full_name: fullName.trim() } });
+      if (error || !data.user) return { ok: false, code: mapAuthError(error) };
+      await supabase.from('profiles').update({ full_name: fullName.trim() }).eq('id', data.user.id);
+      // البريد الجديد يحتاج تأكيدًا من رابط يُرسل إليه
+      return { ok: true, needsConfirmation: data.user.email !== email.trim() };
+    },
   };
 }
 
@@ -173,6 +218,16 @@ export function AuthProvider({ children, backend }: { children: ReactNode; backe
   const real = resolved;
   const signIn = useCallback<AuthBackend['signIn']>((e, p) => (real ? real.signIn(e.trim(), p) : unavailable()), [real]);
   const signUp = useCallback<AuthBackend['signUp']>((n, e, p) => (real ? real.signUp(n.trim(), e.trim(), p) : unavailable()), [real]);
+  const sendPhoneCode = useCallback((p: string) => (real?.sendPhoneCode ? real.sendPhoneCode(p) : unavailable()), [real]);
+  const verifyPhoneCode = useCallback((p: string, c: string) => (real?.verifyPhoneCode ? real.verifyPhoneCode(p, c) : unavailable()), [real]);
+  const completeProfile = useCallback(
+    async (n: string, e: string) => {
+      const r = real?.completeProfile ? await real.completeProfile(n, e) : await unavailable();
+      if (r.ok && real) setState({ status: 'signed_in', user: await real.current().catch(() => null) });
+      return r;
+    },
+    [real],
+  );
   const signOut = useCallback(async () => {
     await real?.signOut();
   }, [real]);
@@ -198,8 +253,8 @@ export function AuthProvider({ children, backend }: { children: ReactNode; backe
   }, [isDemo]);
 
   const value = useMemo(
-    () => ({ ...state, signIn, signUp, signOut, updateProfile, refresh, demo: isDemo, signInAs }),
-    [state, signIn, signUp, signOut, updateProfile, refresh, isDemo, signInAs],
+    () => ({ ...state, signIn, signUp, sendPhoneCode, verifyPhoneCode, completeProfile, signOut, updateProfile, refresh, demo: isDemo, signInAs }),
+    [state, signIn, signUp, sendPhoneCode, verifyPhoneCode, completeProfile, signOut, updateProfile, refresh, isDemo, signInAs],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

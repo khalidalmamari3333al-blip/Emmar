@@ -28,10 +28,11 @@ const SIGNED_URL_SECONDS = 120;
 
 const demo = () => readConfig().useMockData;
 
-export type VerificationError = 'not_configured' | 'rate_limited' | 'not_allowed' | 'checks_failed' | 'reason_required' | 'invalid' | 'bad_type' | 'too_large' | 'error';
+export type VerificationError = 'not_configured' | 'identity_required' | 'rate_limited' | 'not_allowed' | 'checks_failed' | 'reason_required' | 'invalid' | 'bad_type' | 'too_large' | 'error';
 export type VResult<T = void> = { ok: true; data: T } | { ok: false; code: VerificationError; message?: string };
 
 function fail(e: { code?: string; message: string }): VResult<never> {
+  if (e.code === 'ID001') return { ok: false, code: 'identity_required', message: e.message };
   if (e.code === 'RL001') return { ok: false, code: 'rate_limited', message: e.message };
   if (e.code === '42501') return { ok: false, code: 'not_allowed', message: e.message };
   if (e.code === '23514' || e.code === '23505') {

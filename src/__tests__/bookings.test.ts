@@ -7,7 +7,7 @@ import {
   listMyBookings,
   mapBookingRow,
 } from '@/services/bookings';
-import { resetDemo } from '@/demo/store';
+import { demoState, resetDemo } from '@/demo/store';
 
 const LIVE = { useMockData: false, supabaseUrl: 'u', supabaseAnonKey: 'k' };
 const req = { bedId: 'bed-1', start: '2027-01-01', end: '2027-05-01' };
@@ -43,6 +43,9 @@ describe('createBookingRequest', () => {
     const demoReq = { bedId: 'Y-201-b1', start: '2027-01-01', end: '2027-05-01' };
     const first = await createBookingRequest('demo-tenant', demoReq, { useMockData: true });
     expect(first.status).toBe('ok');
+    // ريم لم تتحقق من هويتها بعد: الحجز يتطلب ذلك قبل أي شيء
+    expect(await createBookingRequest('demo-reem', { ...demoReq, start: '2027-03-01' }, { useMockData: true })).toEqual({ status: 'identity_required' });
+    demoState().identities['demo-reem'] = { provider: 'mock_theqa', verifiedName: 'ريم', last4: '1234', verifiedAt: '2026-10-01' };
     expect(await createBookingRequest('demo-reem', { ...demoReq, start: '2027-03-01' }, { useMockData: true })).toEqual({ status: 'conflict' });
     expect(await createBookingRequest('u1', req, { useMockData: false })).toEqual({ status: 'not_configured' });
   });

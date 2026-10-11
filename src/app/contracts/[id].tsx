@@ -4,5 +4,5 @@ import { ContractScreen } from '@/screens/contracts/ContractScreen';
 
 export default function ContractRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  return <ContractScreen key={id} id={id} onBack={() => (router.canGoBack() ? router.back() : router.replace('/contracts'))} />;
+  return <ContractScreen key={id} id={id} onBack={() => (router.canGoBack() ? router.back() : router.replace('/contracts'))} onRequireIdentity={() => router.push('/identity')} />;
 }

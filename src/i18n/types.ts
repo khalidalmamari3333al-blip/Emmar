@@ -136,7 +136,8 @@ export interface Strings {
     shortPassword: string;
     nameRequired: string;
     lockedFor: (seconds: number) => string;
-    errors: Record<'invalid_credentials' | 'email_taken' | 'weak_password' | 'email_not_confirmed' | 'invalid_email' | 'rate_limited' | 'unknown', string>;
+    errors: Record<import('@/lib/auth').AuthErrorCode, string>;
+    phone: { title: string; intro: string; label: string; hint: string; send: string; codeLabel: string; codeSent: (phone: string) => string; verify: string; resend: string; change: string; demoCode: string; profileTitle: string; profileIntro: string; finish: string; useEmail: string; usePhone: string; browseFree: string };
   };
   bookings: {
     title: string;
@@ -443,6 +444,57 @@ export interface Strings {
     retentionDone: (queued: number, removed: number) => string;
     noRequests: string;
     open: string;
+  };
+  identity: {
+    title: string;
+    why: string;
+    when: string[];
+    verified: string;
+    verifiedVia: Record<'theqa' | 'mock_theqa' | 'manual_document', string>;
+    verifiedLine: (name: string, last4: string) => string;
+    notVerified: string;
+    theqaTitle: string;
+    theqaBody: string;
+    theqaButton: string;
+    theqaNotConnected: string;
+    mockTitle: string;
+    mockBody: string;
+    fullName: string;
+    civilId: string;
+    mockButton: string;
+    manualTitle: string;
+    manualBody: string;
+    manualButton: string;
+    privacy: string;
+    done: string;
+    invalid: string;
+    inUse: string;
+    mockDisabled: string;
+    failed: string;
+    required: string;
+    verifyNow: string;
+    open: string;
+    phoneVerified: string;
+  };
+  lease: {
+    title: string;
+    notice: string;
+    status: Record<'not_submitted' | 'preparing' | 'submitted' | 'registered' | 'rejected', string>;
+    authority: Record<'muscat_municipality' | 'sohar_municipality' | 'other', string>;
+    checklistTitle: string;
+    checklist: string[];
+    reference: string;
+    notes: string;
+    prepare: string;
+    submit: string;
+    confirm: string;
+    reject: string;
+    referenceRequired: string;
+    onlyPlatform: string;
+    updated: string;
+    failed: string;
+    manualNote: string;
+    signatureProvider: string;
   };
   profile: {
     title: string;

@@ -6,6 +6,8 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 import { supabaseBackend } from '@/lib/auth';
+
+import { verifyMockIdentity } from './identity';
 import { createBookingRequest } from '@/services/bookings';
 import { cancelContract, createContract, getContract, listMyContracts, reviseContract, signContract } from '@/services/contracts';
 import {
@@ -41,6 +43,7 @@ async function signUp(name: string, role?: 'owner' | 'admin' | 'verifier') {
   mockCurrent = createClient(URL, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
   const backend = supabaseBackend()!;
   await backend.signUp(name, `${name}-${run}@example.com`, 'password-123');
+  await verifyMockIdentity(mockCurrent, name);
   let user = (await backend.current())!;
   if (role) {
     await admin.from('profiles').update({ role }).eq('id', user.id).throwOnError();

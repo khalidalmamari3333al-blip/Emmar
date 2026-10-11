@@ -9,6 +9,9 @@ insert into auth.users (id, email) values
   ('00000000-0000-4000-8000-0000000000e2', 's2@example.com'),
   ('00000000-0000-4000-8000-0000000000e3', 'owner2@example.com');
 update public.profiles set role = 'owner' where id = '00000000-0000-4000-8000-0000000000e3';
+-- مستخدمو الاختبار موثّقو الهوية (مزود تجريبي) — حالات "بلا هوية" مختبرة في القسم 18
+select public.record_identity_verification(id, 'mock_theqa', coalesce(full_name, 'مستخدم اختبار'), '9' || lpad((row_number() over ())::text, 7, '0'), null, 'basic', true)
+from public.profiles;
 
 -- مسودة غير منشورة للمالك التجريبي
 insert into public.properties (id, owner_id, kind, type, city, district_ar, district_en, title_ar, title_en, price_omr, price_period, status)
@@ -567,6 +570,7 @@ select pg_temp.check((select status = 'resolved' and handled_by = auth.uid() fro
 reset role;
 
 -- التقييمات: فقط بعد إقامة مكتملة
+select set_config('request.jwt.claim.sub', '', false); -- عملية نظام
 insert into public.bookings (id, user_id, bed_id, start_date, end_date, status)
 select '00000000-0000-4000-8000-0000000000d8', '00000000-0000-4000-8000-0000000000e1', bed1, '2025-01-01', '2025-03-01', 'confirmed' from t_ids;
 select pg_temp.as_user('00000000-0000-4000-8000-0000000000e1');
@@ -669,5 +673,78 @@ select pg_temp.check(exists (select 1 from public.verification_checks where requ
 select pg_temp.check((select count(*) from public.storage_deletion_queue where bucket = 'verification-docs' and done_at is null) >= 2, 'files wait in the storage deletion queue');
 update public.platform_settings set value = '365' where key = 'document_retention_days';
 select pg_temp.check((select count(*) from public.audit_logs where action like 'privacy.%') >= 4, 'privacy operations are audited');
+
+-- ===== 18. التسجيل والهوية والتسجيل الرسمي =====
+\echo '--- identity & lease registration'
+select set_config('request.jwt.claim.sub', '', false);
+insert into auth.users (id, email, phone, phone_confirmed_at, raw_user_meta_data) values
+  ('00000000-0000-4000-8000-0000000000f9', 'new@example.com', '96891234567', now(), '{"full_name":"جديد"}');
+select pg_temp.check((select phone = '+96891234567' and phone_verified_at is not null from public.profiles where id = '00000000-0000-4000-8000-0000000000f9'), 'a phone confirmed by OTP is copied to the profile');
+
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000f9');
+select pg_temp.check((select count(*) from public.properties where status = 'published') > 0, 'a new user browses listings without any identity check');
+select pg_temp.expect_error($$insert into public.bookings (user_id, bed_id, start_date, end_date) select auth.uid(), bed2, '2029-01-01', '2029-02-01' from t_ids$$, 'ID001', 'booking requires a verified identity');
+update public.profiles set phone = '+96899999999' where id = auth.uid();
+select pg_temp.check((select phone from public.profiles where id = auth.uid()) = '+96891234567', 'a verified phone cannot be replaced without a new OTP');
+select pg_temp.expect_error($$update public.profiles set phone_verified_at = now() where id = auth.uid()$$, '42501', 'phone verification cannot be set by the user');
+select pg_temp.expect_error($$insert into public.identity_verifications (user_id, provider, verified_name, national_id_hash, national_id_last4, expires_at) values (auth.uid(), 'theqa', 'x', repeat('a', 64), '1234', now() + interval '1 year')$$, '42501', 'users cannot mark themselves identity-verified');
+select pg_temp.expect_error($$select public.record_identity_verification(auth.uid(), 'theqa', 'x', '12345678')$$, '42501', 'only the identity service records verifications');
+reset role;
+
+-- ما تفعله دالة identity بمفتاح الخدمة بعد نجاح «ثقة» (هنا: مزود تجريبي)
+select public.record_identity_verification('00000000-0000-4000-8000-0000000000f9', 'mock_theqa', 'سالم بن خالد', '12345678', 'mock-ref', 'high', true);
+select pg_temp.check((select verified_name = 'سالم بن خالد' and national_id_last4 = '5678' and is_mock from public.identity_verifications where user_id = '00000000-0000-4000-8000-0000000000f9' and status = 'verified'), 'identity stores the verified name and last 4 digits only, flagged as mock');
+select pg_temp.check((select full_name from public.profiles where id = '00000000-0000-4000-8000-0000000000f9') = 'سالم بن خالد', 'the verified name becomes the display name');
+select pg_temp.expect_error($$select public.record_identity_verification('00000000-0000-4000-8000-0000000000e3', 'mock_theqa', 'منتحل', '1234-5678', null, 'basic', true)$$, '23505', 'one civil number cannot verify two accounts');
+select pg_temp.check(not exists (select 1 from information_schema.columns where table_name = 'identity_verifications' and column_name ~* 'image|photo|scan|card'), 'no ID card images are stored');
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000f9');
+insert into public.bookings (user_id, bed_id, start_date, end_date) select auth.uid(), bed2, '2029-01-01', '2029-02-01' from t_ids;
+select pg_temp.check(true, 'after identity verification the booking request goes through');
+select pg_temp.check((select count(*) from public.identity_verifications) = 1, 'users see only their own identity record');
+reset role;
+
+-- توقيع العقد يتطلب هوية الموقّع
+update public.identity_verifications set status = 'revoked' where user_id = '00000000-0000-4000-8000-0000000000e1';
+select set_config('request.jwt.claim.sub', '', false);
+update public.platform_settings set value = 'false' where key = 'identity_required_for_booking';
+insert into public.bookings (id, user_id, bed_id, start_date, end_date, status)
+select '00000000-0000-4000-8000-0000000000da', '00000000-0000-4000-8000-0000000000e1', bed1, '2030-01-01', '2030-03-01', 'confirmed' from t_ids;
+update public.platform_settings set value = 'true' where key = 'identity_required_for_booking';
+select pg_temp.as_user('00000000-0000-4000-8000-00000000d001');
+create temp table t_c2 as select public.create_contract('00000000-0000-4000-8000-0000000000da') as id;
+grant select on t_c2 to authenticated;
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e1');
+select pg_temp.expect_error($$select public.sign_contract((select id from t_c2), (select sha256 from public.contract_versions where contract_id = (select id from t_c2)))$$, 'ID001', 'signing a contract requires a verified identity');
+reset role;
+select public.record_identity_verification('00000000-0000-4000-8000-0000000000e1', 'mock_theqa', 'طالب', '87654321', null, 'basic', true);
+
+-- التسجيل الرسمي لدى البلدية: منفصل عن التوقيع
+select pg_temp.check((select status = 'not_submitted' and authority = 'sohar_municipality' and method = 'manual' from public.lease_registrations where contract_id = (select id from t_c)), 'a completed contract starts as "not submitted" to the municipality');
+select pg_temp.check(not exists (select 1 from public.lease_registrations where contract_id = (select id from t_c2)), 'an unsigned contract has no registration yet');
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e1');
+select pg_temp.expect_error($$select public.update_lease_registration((select id from t_c), 'submitted', 'MCT-1')$$, '42501', 'the tenant cannot change the registration status');
+select pg_temp.check((select count(*) from public.lease_registrations where contract_id = (select id from t_c)) = 1, 'the tenant can see the registration status');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-00000000d001');
+select pg_temp.expect_error($$select public.update_lease_registration((select id from t_c), 'submitted')$$, '23514', 'submitting needs the municipality reference number');
+select public.update_lease_registration((select id from t_c), 'submitted', 'SHR-2027-0042', 'قُدّم في مكتب البلدية');
+select pg_temp.expect_error($$select public.update_lease_registration((select id from t_c), 'registered')$$, '42501', 'the landlord cannot self-confirm official registration');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e3');
+select pg_temp.check((select count(*) from public.lease_registrations where contract_id = (select id from t_c)) = 0, 'third parties cannot see the registration');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000ad');
+select public.update_lease_registration((select id from t_c), 'registered');
+select pg_temp.check((select status = 'registered' and reference_no = 'SHR-2027-0042' and confirmed_by = auth.uid() from public.lease_registrations where contract_id = (select id from t_c)), 'the platform confirms official registration with its reference');
+reset role;
+
+-- إصلاحات المراجعة الأمنية
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e3');
+insert into public.properties (id, owner_id, kind, type, city, district_ar, district_en, title_ar, title_en, price_omr, price_period, featured)
+values ('00000000-0000-4000-8000-0000000000bf', auth.uid(), 'rent', 'studio', 'sohar', 'x', 'x', 'مميز؟', 'Featured?', 1, 'monthly', true);
+select pg_temp.check((select not featured from public.properties where id = '00000000-0000-4000-8000-0000000000bf'), 'owners cannot make their own listing featured on insert');
+select pg_temp.expect_error($$select * from public.render_contract('00000000-0000-4000-8000-0000000000d7', 'student_bed', 1)$$, '42501', 'contract rendering is internal only');
+reset role;
 
 \echo 'ALL DATABASE TESTS PASSED'

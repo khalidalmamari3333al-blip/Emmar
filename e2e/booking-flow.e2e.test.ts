@@ -4,6 +4,8 @@
  */
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
+import { verifyMockIdentity } from './identity';
+
 import { supabaseBackend } from '@/lib/auth';
 import { getBedAvailability, getBedLayout } from '@/services/beds';
 import { cancelBooking, createBookingRequest, listMyBookings } from '@/services/bookings';
@@ -25,6 +27,7 @@ async function signUp(name: string) {
   const backend = supabaseBackend()!;
   const email = `${name}-${run}@example.com`;
   expect(await backend.signUp(name, email, 'password-123')).toEqual({ ok: true, needsConfirmation: false });
+  await verifyMockIdentity(mockCurrent, name);
   const user = (await backend.current())!;
   return { client: mockCurrent, user };
 }

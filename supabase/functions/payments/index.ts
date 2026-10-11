@@ -9,6 +9,7 @@ Deno.serve((req) =>
     anonKey: Deno.env.get('SUPABASE_ANON_KEY'),
     serviceKey: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
     webhookSecret: Deno.env.get('PAYMENT_WEBHOOK_SECRET'),
-    mode: Deno.env.get('PAYMENTS_MODE') ?? 'mock',
+    // المزود التجريبي يعمل فقط عند ضبط PAYMENTS_MODE=mock صراحةً
+    mode: Deno.env.get('PAYMENTS_MODE') ?? 'disabled',
   }),
 );
