@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useT } from '@/i18n';
-import { isValidEmail, MIN_PASSWORD, useAuth } from '@/lib/auth';
+import { isValidEmail, loginLockSeconds, MIN_PASSWORD, useAuth } from '@/lib/auth';
 import { colors, font, fonts, radius, spacing } from '@/theme';
 
 export function AuthForm() {
@@ -14,17 +14,22 @@ export function AuthForm() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ kind: 'error' | 'info'; text: string } | null>(null);
+  const [failures, setFailures] = useState<number[]>([]);
 
   const submit = async () => {
     // تحقق محلي سريع؛ الخادم يتحقق مرة أخرى.
     if (mode === 'signUp' && name.trim().length < 2) return setMessage({ kind: 'error', text: t.auth.nameRequired });
     if (!isValidEmail(email)) return setMessage({ kind: 'error', text: t.auth.invalidEmail });
     if (password.length < MIN_PASSWORD) return setMessage({ kind: 'error', text: t.auth.shortPassword });
+    const wait = mode === 'signIn' ? loginLockSeconds(failures) : 0;
+    if (wait > 0) return setMessage({ kind: 'error', text: t.auth.lockedFor(wait) });
     setBusy(true);
     setMessage(null);
     const r = mode === 'signIn' ? await signIn(email, password) : await signUp(name, email, password);
     setBusy(false);
+    if (!r.ok && r.code === 'invalid_credentials') setFailures((f) => [...f.filter((x) => Date.now() - x < 5 * 60_000), Date.now()]);
     if (!r.ok) return setMessage({ kind: 'error', text: t.auth.errors[r.code] });
+    setFailures([]);
     if (r.needsConfirmation) {
       setMode('signIn');
       setPassword('');

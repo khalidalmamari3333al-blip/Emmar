@@ -593,4 +593,81 @@ select pg_temp.as_user('00000000-0000-4000-8000-0000000000e1');
 select pg_temp.expect_error($$update public.bookings set status = 'cancelled' where id = '00000000-0000-4000-8000-0000000000d8'$$, '23514', 'a completed stay cannot be cancelled afterwards');
 reset role;
 
+-- ===== 17. الأمان والخصوصية =====
+\echo '--- security & privacy'
+-- إعلان حقيقي قديم منشور قبل نظام التوثيق (غير موثّق) لا يظهر للعامة
+select set_config('request.jwt.claim.sub', '', false); -- عملية نظام (كما كانت قبل الترحيل)
+insert into public.properties (id, owner_id, kind, type, city, district_ar, district_en, title_ar, title_en, price_omr, price_period, status, is_demo)
+values ('00000000-0000-4000-8000-0000000000b9', '00000000-0000-4000-8000-0000000000e3', 'rent', 'studio', 'sohar', 'x', 'x', 'قديم غير موثق', 'Legacy unverified', 90, 'monthly', 'published', false);
+select pg_temp.as_user(null);
+select pg_temp.check(not exists (select 1 from public.properties where id = '00000000-0000-4000-8000-0000000000b9'), 'an unverified listing is hidden from public search when verification is mandatory');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e3');
+select pg_temp.check(exists (select 1 from public.properties where id = '00000000-0000-4000-8000-0000000000b9'), 'its owner still sees it');
+reset role;
+update public.platform_settings set value = 'false' where key = 'publish_requires_verification';
+select pg_temp.as_user(null);
+select pg_temp.check(exists (select 1 from public.properties where id = '00000000-0000-4000-8000-0000000000b9'), 'visible again when the platform makes verification optional');
+reset role;
+update public.platform_settings set value = 'true' where key = 'publish_requires_verification';
+
+-- حدود المعدّل
+select public.hit_rate_limit('00000000-0000-4000-8000-0000000000e2', 'test.action', 2, '1 hour');
+select public.hit_rate_limit('00000000-0000-4000-8000-0000000000e2', 'test.action', 2, '1 hour');
+select pg_temp.expect_error($$select public.hit_rate_limit('00000000-0000-4000-8000-0000000000e2', 'test.action', 2, '1 hour')$$, 'RL001', 'the rate limiter blocks requests over the limit');
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e2');
+select pg_temp.expect_error($$select public.hit_rate_limit(auth.uid(), 'x', 1000, '1 hour')$$, '42501', 'clients cannot reset or call the rate limiter directly');
+select pg_temp.expect_error($$delete from public.rate_limit_hits$$, '42501', 'clients cannot clear rate-limit counters');
+reset role;
+
+-- طلبات الخصوصية + حد 3 يوميًا
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e1');
+insert into public.privacy_requests (type) values ('export');
+select pg_temp.expect_error($$insert into public.privacy_requests (type) values ('export')$$, '23505', 'one pending request per type');
+select pg_temp.expect_error($$insert into public.privacy_requests (type, status) values ('correction', 'completed')$$, '42501', 'users cannot pre-approve their own request');
+create temp table t_export as select public.export_my_data() as d;
+grant select on t_export to authenticated, anon;
+select pg_temp.check((select d ->> 'email' = 's1@example.com' and jsonb_array_length(d -> 'bookings') >= 1 from t_export), 'export contains my own data');
+select pg_temp.check((select not exists (select 1 from jsonb_array_elements(d -> 'bookings') b, public.bookings bk where bk.id = (b ->> 'id')::uuid and bk.user_id <> auth.uid()) from t_export), 'export never contains other users'' bookings');
+select pg_temp.check((select d::text not like '%identity_hash%' from t_export), 'export leaves out identity fingerprints');
+select pg_temp.expect_error($$select public.process_deletion_request((select id from public.privacy_requests limit 1))$$, '42501', 'only admins process privacy requests');
+reset role;
+select pg_temp.as_user(null);
+select pg_temp.expect_error($$select public.export_my_data()$$, '42501', 'export requires sign-in');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000ad');
+select public.handle_privacy_request((select id from public.privacy_requests where user_id = '00000000-0000-4000-8000-0000000000e1' and type = 'export'), 'completed', 'أُرسل الملف');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e1');
+insert into public.privacy_requests (type) values ('export');
+insert into public.privacy_requests (type, details) values ('correction', 'رقم هاتفي خطأ');
+select pg_temp.expect_error($$insert into public.privacy_requests (type) values ('deletion')$$, 'RL001', 'privacy requests are rate limited (3 per day)');
+reset role;
+
+-- طلب الحذف: إخفاء الهوية مع الاحتفاظ بالسجلات القانونية
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e2');
+insert into public.privacy_requests (type) values ('deletion');
+reset role;
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000ad');
+select pg_temp.expect_error($$select public.handle_privacy_request((select id from public.privacy_requests where type = 'deletion' limit 1), 'completed')$$, '23514', 'deletion requests go through the deletion process only');
+select pg_temp.check(public.process_deletion_request((select id from public.privacy_requests where type = 'deletion' and user_id = '00000000-0000-4000-8000-0000000000e2')) = '00000000-0000-4000-8000-0000000000e2', 'admin processes the deletion and gets the user to block');
+reset role;
+select pg_temp.check((select full_name = 'مستخدم محذوف' and phone is null from public.profiles where id = '00000000-0000-4000-8000-0000000000e2'), 'the profile is anonymised');
+select pg_temp.check((select count(*) from public.notifications where user_id = '00000000-0000-4000-8000-0000000000e2') = 0, 'notifications are deleted');
+select pg_temp.check((select count(*) from public.bookings where user_id = '00000000-0000-4000-8000-0000000000e2' and status = 'pending') = 0, 'pending bookings are cancelled');
+
+-- سياسة الاحتفاظ
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000e1');
+select pg_temp.expect_error($$select public.purge_expired_documents()$$, '42501', 'only admins run the retention job');
+reset role;
+update public.platform_settings set value = '0' where key = 'document_retention_days';
+select pg_temp.as_user('00000000-0000-4000-8000-0000000000ad');
+select pg_temp.check(public.purge_expired_documents() >= 2, 'documents of decided requests past retention are queued for deletion');
+reset role;
+select pg_temp.check(not exists (select 1 from public.verification_documents d join public.verification_requests r on r.id = d.request_id where r.status in ('approved', 'rejected')), 'their document records are removed');
+select pg_temp.check(exists (select 1 from public.verification_checks where request_id = '00000000-0000-4000-8000-0000000000c1'), 'check results and decisions are kept as records');
+select pg_temp.check((select count(*) from public.storage_deletion_queue where bucket = 'verification-docs' and done_at is null) >= 2, 'files wait in the storage deletion queue');
+update public.platform_settings set value = '365' where key = 'document_retention_days';
+select pg_temp.check((select count(*) from public.audit_logs where action like 'privacy.%') >= 4, 'privacy operations are audited');
+
 \echo 'ALL DATABASE TESTS PASSED'

@@ -31,6 +31,8 @@ export interface Strings {
   emptyFeatured: string;
   notConfigured: string;
   loadError: string;
+  rateLimited: string;
+  loading: string;
   mockBadge: string;
   currency: string;
   perMonth: string;
@@ -133,6 +135,7 @@ export interface Strings {
     invalidEmail: string;
     shortPassword: string;
     nameRequired: string;
+    lockedFor: (seconds: number) => string;
     errors: Record<'invalid_credentials' | 'email_taken' | 'weak_password' | 'email_not_confirmed' | 'invalid_email' | 'rate_limited' | 'unknown', string>;
   };
   bookings: {
@@ -407,6 +410,39 @@ export interface Strings {
     noReports: string;
     invalid: string;
     failed: string;
+  };
+  privacy: {
+    title: string;
+    intro: string;
+    collected: string[];
+    retention: string;
+    exportTitle: string;
+    exportBody: string;
+    exportButton: string;
+    exported: string;
+    share: string;
+    correctionTitle: string;
+    correctionHint: string;
+    deletionTitle: string;
+    deletionBody: string;
+    deletionConfirm: string;
+    send: string;
+    sent: string;
+    myRequests: string;
+    types: Record<'export' | 'correction' | 'deletion', string>;
+    status: Record<'pending' | 'completed' | 'rejected', string>;
+    duplicate: string;
+    rateLimited: string;
+    failed: string;
+    adminTab: string;
+    complete: string;
+    reject: string;
+    runDeletion: string;
+    deletionDone: (blocked: boolean, files: number) => string;
+    runRetention: string;
+    retentionDone: (queued: number, removed: number) => string;
+    noRequests: string;
+    open: string;
   };
   profile: {
     title: string;

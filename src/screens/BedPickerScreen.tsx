@@ -272,7 +272,7 @@ function RequestAction({
     );
   }
   const error =
-    outcome?.status === 'conflict' ? t.beds.conflict : outcome?.status === 'not_allowed' ? t.beds.notAllowed : outcome ? t.beds.failed : null;
+    outcome?.status === 'conflict' ? t.beds.conflict : outcome?.status === 'not_allowed' ? t.beds.notAllowed : outcome?.status === 'rate_limited' ? t.rateLimited : outcome ? t.beds.failed : null;
   const disabled = !hasSelection || sending;
   return (
     <>

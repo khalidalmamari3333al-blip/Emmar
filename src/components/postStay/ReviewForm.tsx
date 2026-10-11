@@ -41,7 +41,7 @@ export function ReviewForm({ bookingId, submit = submitReview, onDone }: { booki
           setBusy(true);
           const r = await submit(bookingId, rating, comment);
           setBusy(false);
-          setMsg(r.ok ? { text: p.reviewSent, tone: 'success' } : { text: r.code === 'not_completed' ? p.onlyAfterStay : p.failed, tone: 'error' });
+          setMsg(r.ok ? { text: p.reviewSent, tone: 'success' } : { text: r.code === 'not_completed' ? p.onlyAfterStay : r.code === 'rate_limited' ? t.rateLimited : p.failed, tone: 'error' });
           if (r.ok) onDone?.();
         }}
       />

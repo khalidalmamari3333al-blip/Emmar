@@ -7,7 +7,7 @@ import { colors, font, fonts, radius, spacing } from '@/theme';
 /** يعرض حالة التحميل/عدم الربط/الخطأ بصدق. يُرجع null عند النجاح. */
 export function StatusNotice({ result }: { result: DataResult<unknown> | null }) {
   const t = useT();
-  if (!result) return <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.lg }} />;
+  if (!result) return <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.lg }} testID="loading" accessibilityLabel={t.loading} />;
   if (result.status === 'not_configured') return <Text style={styles.notice}>{t.notConfigured}</Text>;
   if (result.status === 'error') return <Text style={[styles.notice, { color: colors.danger }]}>{t.loadError}</Text>;
   return null;

@@ -45,7 +45,7 @@ export function ReportListing({ propertyId, send = reportProperty }: { propertyI
           setBusy(true);
           const r = await send(propertyId, reason, details);
           setBusy(false);
-          setMsg(r.ok ? { text: p.reportSent, tone: 'success' } : { text: r.code === 'duplicate' ? p.duplicateReport : p.failed, tone: 'error' });
+          setMsg(r.ok ? { text: p.reportSent, tone: 'success' } : { text: r.code === 'duplicate' ? p.duplicateReport : r.code === 'rate_limited' ? t.rateLimited : p.failed, tone: 'error' });
         }}
       />
     </View>

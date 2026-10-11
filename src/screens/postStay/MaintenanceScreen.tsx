@@ -56,7 +56,7 @@ export function MaintenanceScreen({
     };
   }, [allowed, as, services, reload, refreshKey]);
 
-  const errText = (code: string) => (code === 'not_completed' ? p.noActiveStay : code === 'invalid' ? p.invalid : code === 'not_allowed' ? t.owner.notAllowed : p.failed);
+  const errText = (code: string) => (code === 'not_completed' ? p.noActiveStay : code === 'invalid' ? p.invalid : code === 'not_allowed' ? t.owner.notAllowed : code === 'rate_limited' ? t.rateLimited : p.failed);
 
   const submit = async () => {
     if (!bookingId) return;

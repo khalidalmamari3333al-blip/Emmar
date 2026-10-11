@@ -96,7 +96,7 @@ export function VerificationScreen({ subject, propertyId, services = defaultVeri
   }, [signedIn, services, subject, propertyId, reload]);
 
   const errText = (code: svc.VerificationError) =>
-    code === 'bad_type' ? v.badType : code === 'too_large' ? v.tooLarge : code === 'not_allowed' ? t.owner.notAllowed : code === 'invalid' ? t.owner.fixErrors : v.failed;
+    code === 'bad_type' ? v.badType : code === 'too_large' ? v.tooLarge : code === 'not_allowed' ? t.owner.notAllowed : code === 'invalid' ? t.owner.fixErrors : code === 'rate_limited' ? t.rateLimited : v.failed;
 
   const act = async (fn: () => Promise<svc.VResult<unknown>>, success?: string) => {
     setBusy(true);

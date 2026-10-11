@@ -24,7 +24,7 @@ const PROVIDER = 'mock_pay';
 
 function rpcError(e: { code?: string; message: string }) {
   if (e.code === '42501') return json(403, { error: 'not_allowed' });
-  if (e.code === '23514') return json(409, { error: 'invalid_state', message: e.message });
+  if (e.code === '23514') return json(409, { error: 'invalid_state' }); // بلا رسائل داخلية
   return json(500, { error: 'internal_error' });
 }
 

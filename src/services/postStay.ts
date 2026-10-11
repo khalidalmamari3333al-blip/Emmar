@@ -17,10 +17,11 @@ import type {
 
 const demo = () => readConfig().useMockData;
 
-export type PostStayError = 'not_configured' | 'not_allowed' | 'invalid' | 'duplicate' | 'not_completed' | 'error';
+export type PostStayError = 'not_configured' | 'not_allowed' | 'invalid' | 'duplicate' | 'not_completed' | 'rate_limited' | 'error';
 export type SResult<T = void> = { ok: true; data: T } | { ok: false; code: PostStayError; message?: string };
 
 function fail(e: { code?: string; message: string }): SResult<never> {
+  if (e.code === 'RL001') return { ok: false, code: 'rate_limited', message: e.message };
   if (e.code === '23505') return { ok: false, code: 'duplicate', message: e.message };
   if (/not been completed|active confirmed stay/i.test(e.message)) return { ok: false, code: 'not_completed', message: e.message };
   if (e.code === '42501' || /review_not_allowed/.test(e.message)) return { ok: false, code: 'not_allowed', message: e.message };

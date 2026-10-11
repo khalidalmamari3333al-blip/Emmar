@@ -13,6 +13,7 @@ import type { NotificationData, NotificationKind } from '@/services/notification
 import type { BuildingLayout } from '@/types/layout';
 import type { Contract } from '@/types/contract';
 import type { Payment } from '@/types/payment';
+import type { PrivacyRequest } from '@/services/privacy';
 import type { MaintenanceRequest, PropertyReport, PublicReview } from '@/types/postStay';
 import type { ListingStatus, PropertyDetail } from '@/types/property';
 import type {
@@ -135,6 +136,7 @@ interface State {
   contracts: Contract[];
   payments: Payment[];
   maintenance: MaintenanceRequest[];
+  privacy: PrivacyRequest[];
   reports: (PropertyReport & { reporterId: string })[];
   reviews: (PublicReview & { bookingId: string; propertyId: string; tenantId: string })[];
   paymentTx: { providerRef: string; paymentId: string; type: 'charge' | 'refund'; amountOmr: number; status: 'initiated' | 'succeeded' | 'failed'; createdBy: string }[];
@@ -185,7 +187,7 @@ function seed(now = Date.now()): State {
     monthlyPriceOmr: 50,
     createdAt: iso(now - 30 * 864e5),
   }));
-  const s: State = { users, properties, layouts, bookings, notifications: [], audit: [], verifications: [], landlords: [], contracts: [], payments: [], paymentTx: [], maintenance: [], reports: [], reviews: [], contractsSeeded: false, currentUserId: null, seq: 1 };
+  const s: State = { users, properties, layouts, bookings, notifications: [], audit: [], verifications: [], landlords: [], contracts: [], payments: [], paymentTx: [], maintenance: [], privacy: [], reports: [], reviews: [], contractsSeeded: false, currentUserId: null, seq: 1 };
   state = s;
   // طلبان جديدان بانتظار المالك + حجز مؤكد للطالب، حتى لا تبدو اللوحات فارغة
   createBooking('demo-reem', { bedId: 'Y-103-b1', start: '2026-11-01', end: '2027-03-01' }, now - 3 * 3600e3);

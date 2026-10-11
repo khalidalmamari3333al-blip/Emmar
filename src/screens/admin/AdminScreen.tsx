@@ -20,6 +20,7 @@ import {
   setPropertyStatus,
 } from '@/services/owner';
 import { handleReport, listReports, SResult } from '@/services/postStay';
+import { handlePrivacyRequest, listPrivacyRequests, PrivacyRequest, PrivacyStatus, processDeletion, runRetention, VResult as PResult } from '@/services/privacy';
 import type { PropertyReport, ReportStatus } from '@/types/postStay';
 import { colors, font, fonts, radius, spacing } from '@/theme';
 import type { ListingStatus } from '@/types/property';
@@ -32,6 +33,7 @@ export interface AdminScreenProps {
   setStatus?: (id: string, status: ListingStatus) => Promise<Result>;
   auditLog?: (entity?: string) => Promise<Result<AuditEntry[]>>;
   listReports?: (status: ReportStatus | null) => Promise<SResult<PropertyReport[]>>;
+  privacy?: AdminPrivacyServices;
   handleReport?: (id: string, status: 'resolved' | 'dismissed', note?: string) => Promise<SResult>;
   onOpenProperty?: (id: string) => void;
   onBack?: () => void;
@@ -43,15 +45,15 @@ const ROLES: AdminUser['role'][] = ['user', 'owner', 'verifier', 'support', 'adm
 export function AdminScreen(props: AdminScreenProps) {
   const { t } = useLocale();
   const auth = useAuth();
-  const [tab, setTab] = useState<'users' | 'properties' | 'reports' | 'audit'>('users');
+  const [tab, setTab] = useState<'users' | 'properties' | 'reports' | 'privacy' | 'audit'>('users');
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScreenHeader title={t.admin.dashboard} onBack={props.onBack} backLabel={t.detail.back} />
       <Gate allowed={isAdminRole(auth.user)} loading={auth.status === 'loading'} message={t.admin.notAdmin}>
         <View style={{ paddingHorizontal: spacing.lg }}>
-          <ChipGroup testID="admin-tab" value={tab} onChange={(v) => v && setTab(v)} options={[{ value: 'users', label: t.admin.tabs.users }, { value: 'properties', label: t.admin.tabs.properties }, { value: 'reports', label: t.post.reportsTab }, { value: 'audit', label: t.admin.tabs.audit }]} />
+          <ChipGroup testID="admin-tab" value={tab} onChange={(v) => v && setTab(v)} options={[{ value: 'users', label: t.admin.tabs.users }, { value: 'properties', label: t.admin.tabs.properties }, { value: 'reports', label: t.post.reportsTab }, { value: 'privacy', label: t.privacy.adminTab }, { value: 'audit', label: t.admin.tabs.audit }]} />
         </View>
-        {tab === 'users' ? <UsersTab {...props} selfId={auth.user?.id} /> : tab === 'properties' ? <PropertiesTab {...props} /> : tab === 'reports' ? <ReportsTab {...props} /> : <AuditTab {...props} />}
+        {tab === 'users' ? <UsersTab {...props} selfId={auth.user?.id} /> : tab === 'properties' ? <PropertiesTab {...props} /> : tab === 'reports' ? <ReportsTab {...props} /> : tab === 'privacy' ? <PrivacyTab {...props} /> : <AuditTab {...props} />}
       </Gate>
     </SafeAreaView>
   );
@@ -175,6 +177,83 @@ function PropertiesTab({ listProperties = listAllProperties, setFeatured = admin
             {p.status !== 'published' && <Button small variant="secondary" label={t.admin.publish} onPress={() => run(() => setStatus(p.id, 'published'))} />}
             {p.status !== 'archived' && <Button small variant="danger" label={t.admin.archive} onPress={() => run(() => setStatus(p.id, 'archived'))} testID={`archive-${p.id}`} />}
           </View>
+        </View>
+      )}
+    />
+  );
+}
+
+export interface AdminPrivacyServices {
+  list: (status: PrivacyStatus | null) => Promise<PResult<PrivacyRequest[]>>;
+  handle: (id: string, status: 'completed' | 'rejected', note?: string) => Promise<PResult>;
+  processDeletion: typeof processDeletion;
+  runRetention: typeof runRetention;
+}
+const privacyDefaults: AdminPrivacyServices = { list: listPrivacyRequests, handle: handlePrivacyRequest, processDeletion, runRetention };
+
+function PrivacyTab({ privacy = privacyDefaults }: AdminScreenProps) {
+  const { t, locale } = useLocale();
+  const p = t.privacy;
+  const [status, setStatus] = useState<PrivacyStatus>('pending');
+  const [res, setRes] = useState<{ status: string; r: PResult<PrivacyRequest[]> } | null>(null);
+  const [reload, setReload] = useState(0);
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [msg, setMsg] = useState<{ text: string; tone: 'error' | 'success' } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    privacy.list(status).then((r) => active && setRes({ status, r }));
+    return () => {
+      active = false;
+    };
+  }, [status, privacy, reload]);
+
+  const r = res?.status === status ? res.r : null;
+  const act = async (fn: () => Promise<PResult<unknown>>, ok: (d: never) => string) => {
+    setBusy(true);
+    const out = await fn();
+    setBusy(false);
+    setMsg(out.ok ? { text: ok(out.data as never), tone: 'success' } : { text: p.failed, tone: 'error' });
+    setReload((n) => n + 1);
+  };
+
+  return (
+    <FlatList
+      data={r?.ok ? r.data : []}
+      keyExtractor={(x) => x.id}
+      contentContainerStyle={styles.list}
+      keyboardShouldPersistTaps="handled"
+      ListHeaderComponent={
+        <View style={{ gap: spacing.sm }}>
+          <ChipGroup testID="privacy-filter" value={status} onChange={(v) => v && setStatus(v)} options={(['pending', 'completed', 'rejected'] as const).map((s) => ({ value: s, label: p.status[s] }))} />
+          <Button small variant="secondary" label={p.runRetention} busy={busy} testID="run-retention"
+            onPress={() => act(() => privacy.runRetention(), (d: { queued: number; files: { removed: number } }) => p.retentionDone(d.queued, d.files.removed))} />
+          {msg && <Notice text={msg.text} tone={msg.tone} />}
+        </View>
+      }
+      ListEmptyComponent={r?.ok ? <Notice text={p.noRequests} /> : null}
+      renderItem={({ item }) => (
+        <View style={styles.card} testID={`privacy-${item.id}`}>
+          <View style={styles.row}>
+            <Pill label={p.types[item.type]} tone={item.type === 'deletion' ? 'bad' : 'neutral'} />
+            <Text style={styles.meta}>{new Date(item.createdAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB')}</Text>
+          </View>
+          {item.details ? <Text style={styles.meta}>{item.details}</Text> : null}
+          {item.adminNote ? <Text style={styles.meta}>{item.adminNote}</Text> : null}
+          {item.status === 'pending' &&
+            (item.type === 'deletion' ? (
+              <Button small variant="danger" label={p.runDeletion} busy={busy} testID={`delete-${item.id}`}
+                onPress={() => act(() => privacy.processDeletion(item.id), (d: { loginBlocked: boolean; files: { removed: number } }) => p.deletionDone(d.loginBlocked, d.files.removed))} />
+            ) : (
+              <>
+                <TextInput value={notes[item.id] ?? ''} onChangeText={(v) => setNotes((n) => ({ ...n, [item.id]: v }))} placeholder={t.post.adminNote} placeholderTextColor={colors.textMuted} style={styles.search} accessibilityLabel={t.post.adminNote} />
+                <View style={styles.row}>
+                  <Button small label={p.complete} testID={`complete-${item.id}`} onPress={() => act(() => privacy.handle(item.id, 'completed', notes[item.id]), () => p.sent)} />
+                  <Button small variant="ghost" label={p.reject} onPress={() => act(() => privacy.handle(item.id, 'rejected', notes[item.id]), () => p.sent)} />
+                </View>
+              </>
+            ))}
         </View>
       )}
     />

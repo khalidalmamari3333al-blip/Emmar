@@ -27,7 +27,7 @@ beforeAll(async () => {
   await admin.from('profiles').update({ role: 'owner' }).eq('id', userId).throwOnError();
   const { data: p } = await admin
     .from('properties')
-    .insert({ owner_id: userId, kind: 'student', type: 'student_housing', city: 'sohar', district_ar: 'الهمبار', district_en: 'Al Humbar', title_ar: `سكن الدردشة ${run}`, title_en: `Chat residence ${run}`, price_omr: 0.5, price_period: 'monthly', status: 'published', featured: true })
+    .insert({ owner_id: userId, kind: 'student', type: 'student_housing', city: 'sohar', district_ar: 'الهمبار', district_en: 'Al Humbar', title_ar: `سكن الدردشة ${run}`, title_en: `Chat residence ${run}`, price_omr: 0.5, price_period: 'monthly', status: 'published', featured: true, verification_status: 'verified', verified_at: new Date().toISOString(), verified_scope: 'documents_reviewed' })
     .select('id').single().throwOnError();
   propertyId = p!.id;
 });

@@ -21,6 +21,17 @@ export const isAdminRole = (u: AuthUser | null) => u?.role === 'admin';
 /** فريق التحقق (والمدير) */
 export const isStaffRole = (u: AuthUser | null) => u?.role === 'admin' || u?.role === 'verifier';
 
+/**
+ * قفل محلي بعد محاولات دخول فاشلة متتالية (طبقة إضافية فوق حدود Supabase Auth على الخادم):
+ * 5 محاولات خاطئة خلال 5 دقائق ← انتظار دقيقة. يعيد الثواني المتبقية (0 = مسموح).
+ */
+export const LOGIN_MAX_FAILURES = 5;
+export function loginLockSeconds(failures: number[], now = Date.now()): number {
+  const recent = failures.filter((t) => now - t < 5 * 60_000);
+  if (recent.length < LOGIN_MAX_FAILURES) return 0;
+  return Math.max(0, Math.ceil((Math.max(...recent) + 60_000 - now) / 1000));
+}
+
 export type AuthErrorCode = 'invalid_credentials' | 'email_taken' | 'weak_password' | 'email_not_confirmed' | 'invalid_email' | 'rate_limited' | 'unknown';
 
 export type AuthResult = { ok: true; needsConfirmation?: boolean } | { ok: false; code: AuthErrorCode };

@@ -21,6 +21,7 @@
   ],
   "exclude": [
     "supabase/functions/**/index.ts",
+    "e2e/serve-privacy.ts",
     "e2e/serve-payments.ts",
     "node_modules"
   ]
